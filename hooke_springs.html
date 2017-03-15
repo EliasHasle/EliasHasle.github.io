@@ -1,0 +1,180 @@
+<html>
+<head>
+	<title>Hooke springs</title>
+	<script src="three.js-master/build/three.min.js"></script>
+	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+<script>
+/*
+TODO: Use sets instead of lists, and then do proper removal of broken edges.
+*/
+
+"use strict";
+
+//Globals
+var clock, renderer, scene, camera, controls;
+var nodes=[], edges=[];
+var g=9.81, C=0.5, damping=true;
+
+function Node(m) {
+	THREE.Mesh.call(this,this.geometry,this.material);
+	this.m = m;
+	this.fixed = (m===0);
+	var r = Math.max(Math.pow(m,1/3), 0.1); //volume proportional to mass
+	this.scale.set(r,r,r);
+	this.F = new THREE.Vector3(0,0,0);
+	this.v = new THREE.Vector3(0,0,0);
+}
+Node.prototype = Object.create(THREE.Mesh.prototype);
+Object.assign(Node.prototype, {
+	constructor: Node,
+	geometry: new THREE.SphereBufferGeometry(1),
+	material: new THREE.MeshPhongMaterial({color: 0xcc3333}),
+	update: function(dt) {
+		this.F.z -= this.m*g;
+		if (!this.fixed) {
+			//damping:
+			if (damping) {
+				//this.F.addScaledVector(this.v, -C*this.v.length());
+				this.F.addScaledVector(this.v, -C);
+			}
+			//acceleration:
+			this.v.addScaledVector(this.F, dt/this.m);
+			//motion:
+			this.position.addScaledVector(this.v, dt);
+		}
+		this.F.set(0,0,0); //reset F
+	}
+});
+
+function Edge(n1, n2, k, B) {
+	this.n1 = n1;
+	this.n2 = n2;
+	this.k = k || 100;
+	this.B = B || 400;
+	this.length = new THREE.Vector3().add(n1.position).sub(n2.position).length();
+	this.delta = 0;
+	this.geometry = new THREE.Geometry();
+	this.geometry.vertices.push(n1.position);
+	this.geometry.vertices.push(n2.position);
+	THREE.Line.call(this,this.geometry,this.material);
+}
+Edge.prototype = Object.create(THREE.Line.prototype);
+Object.assign(Edge.prototype, {
+	constructor: Edge,
+	material: new THREE.LineBasicMaterial({color: 0x33cc33}),
+	//kanskje misbruk av Object.assign. this peker vel i utgangspunktet til kildeobjektet
+	update: function(dt) {
+		var diff = new THREE.Vector3().add(this.n1.position).sub(this.n2.position);
+		this.delta = (diff.length()) - this.length;
+		diff.normalize(); //direction of force
+		var T = this.k*this.delta;
+		if (Math.abs(T) > this.B) {
+			this.visible = false;
+			this.n1 = null; //not sufficient
+			this.n2 = null; //not sufficient
+			return;
+		}
+		this.n1.F.addScaledVector(diff, -T);
+		this.n2.F.addScaledVector(diff, T);
+	},
+	updateDisplay: function() {
+		this.geometry.vertices[0].copy(this.n1.position);
+		this.geometry.vertices[1].copy(this.n2.position);
+		this.geometry.verticesNeedUpdate = true;
+	}
+});
+
+
+(function main() {
+	//Renderer setup
+	clock = new THREE.Clock(/*false*/); //false vil skru av autostart
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	container.appendChild(renderer.domElement);
+	
+	//Scene setup:
+	scene = new THREE.Scene();
+	scene.add(new THREE.AxisHelper(50));
+	//scene.add(new THREE.GridHelper(50, 10));
+	scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+	//Add nodes
+	nodes[0] = new Node(0);
+	nodes[0].position.set(0,0,0);
+	scene.add(nodes[0]);
+	nodes[1] = new Node(0);
+	nodes[1].position.set(10,0,0);
+	scene.add(nodes[1]);
+	nodes[2] = new Node(0);
+	nodes[2].position.set(0,10,0);
+	scene.add(nodes[2]);
+	nodes[3] = new Node(1);
+	nodes[3].position.set(5,5,5);
+	scene.add(nodes[3]);
+	nodes[4] = new Node(0.5);
+	nodes[4].position.set(10,10,10);
+	scene.add(nodes[4]);
+	nodes[5] = new Node(7);
+	nodes[5].position.set(20,20,20);
+	scene.add(nodes[5]);
+	
+	//Add edges
+	edges[0] = new Edge(nodes[0], nodes[3], 1110, 300);
+	scene.add(edges[0]);
+	edges[1] = new Edge(nodes[1], nodes[3], 1000, 300);
+	scene.add(edges[1]);
+	edges[2] = new Edge(nodes[2], nodes[3], 700, 300);
+	scene.add(edges[2]);
+	edges[3] = new Edge(nodes[3], nodes[4], 100, 300);
+	scene.add(edges[3]);
+	edges[4] = new Edge(nodes[4], nodes[5], 100, 300);
+	scene.add(edges[4]);
+	
+	//Camera setup
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 1, 100000);
+	window.addEventListener('resize', function() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}, false);
+	camera.up.set(0,0,1);
+	camera.position.set(60, 140, 90);
+	camera.lookAt(scene.position);
+	scene.add(camera);
+	
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+	animate();
+})();
+
+function animate() {
+	requestAnimationFrame(animate);
+	var dt = clock.getDelta();
+	//var t = clock.getElapsedTime();
+	
+	for (var i=0; i<edges.length; i++) {
+		if (edges[i].visible) {
+			edges[i].update(dt);
+		}
+	}
+	for (var i=0; i<nodes.length; i++) {
+		nodes[i].update(dt);
+	}
+	for (var i=0; i<edges.length; i++) {
+		if (edges[i].visible) {
+			edges[i].updateDisplay();
+		}
+	}
+	
+	renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
