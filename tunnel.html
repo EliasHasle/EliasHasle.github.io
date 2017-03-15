@@ -8,6 +8,16 @@
 
 <body>
 <script>
+/*
+TODO:
+- Twists and turns, with collision detection.
+- Efficient representation with multimaterials and everything.
+- Realistic vehicle physics.
+- More graphics.
+- Timing.
+- Gameplay (Obstructions etc.).
+*/
+
 //Units are base SI.
 
 //For keyboard control
@@ -132,10 +142,13 @@ function init() {
 		bumpData,
 		64,64,
 		THREE.RGBFormat);
+	let repU = 100*2*radius*Math.sin(angle_down_from_road)/64;
+	let repV = 100*roadLength/64;
 	map.wrapS = THREE.RepeatWrapping;
 	map.wrapT = THREE.RepeatWrapping;
-	map.repeat.set(Math.round(0.618*100*2*radius*Math.sin(angle_down_from_road)/64),
-					Math.round(0.618*100*roadLength/64));
+			//golden ratio between bmap repeat and map repeat
+	map.repeat.set(Math.round(0.618*repU),
+					Math.round(0.618*repV));
 	map.needsUpdate = true; //test
 	var bmap = new THREE.DataTexture(
 		bumpData,
@@ -143,8 +156,8 @@ function init() {
 		THREE.RGBFormat);
 	bmap.wrapS = THREE.RepeatWrapping;
 	bmap.wrapT = THREE.RepeatWrapping;
-	bmap.repeat.set(Math.round(100*2*radius*Math.sin(angle_down_from_road)/64),
-					Math.round(100*roadLength/64));
+	bmap.repeat.set(Math.round(repU),
+					Math.round(repV));
 	bmap.needsUpdate = true; //test
 	
 	road = new THREE.Mesh(
