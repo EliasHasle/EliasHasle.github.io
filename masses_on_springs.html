@@ -48,7 +48,7 @@ function MassesOnSprings(N, damping="Linear", C=0.5) {
 	this.damping = damping;
 	this.C = C;
 	//Initial values:
-	this.p0 = new Float32Array(3*this.N).fill(0); //positions
+	this.p0 = new Float32Array(3*N).fill(0); //positions
 	
 	//Relevant for points and lines:
 	let geom = new THREE.BufferGeometry();
@@ -83,19 +83,15 @@ Object.assign(MassesOnSprings.prototype, {
 			else ma[i] = Random.rand()*8;
 		}
 		m.needsUpdate = true;
-		let pos = this.masses.geometry.getAttribute("position");
-		let pa = pos.array;
-		for (let i=0; i < 3*this.N; i++) pa[i] = p0[i];
-		pos.needsUpdate = true;
 		
 		//springs
 		let springs = this.springs;
 		springs.indices = [] //Initial indices
-		springs.L0 = []; //Initial lengths
+		springs.L = []; //Initial lengths
 		springs.k = []; //Stiffnesses
 		springs.B = []; //breaking strengths
 		let indices = springs.indices;
-		let L0 = springs.L0;
+		let L = springs.L;
 		let k = springs.k;
 		let B = springs.B;
 		for (let i=0; i<this.N-1; i++) {
@@ -106,12 +102,32 @@ Object.assign(MassesOnSprings.prototype, {
 					indices.push(j);
 					k.push(Random.rand()*1000);
 					B.push(Random.rand()*800);
-					L0.push(new THREE.Vector3().fromArray(this.p0, 3*j).sub(pi).length());
+					L.push(new THREE.Vector3().fromArray(this.p0, 3*j).sub(pi).length());
 				}
 			}
 		}
 		
-		springs.geometry.setIndex(new THREE.BufferAttribute(new Uint16Array(indices), 1));
+		this.restart(true);
+	},
+	restart: function(newIndex=false) {
+		let pos = this.masses.geometry.getAttribute("position");
+		let pa = pos.array;
+		for (let i=0; i < 3*this.N; i++) pa[i] = this.p0[i];
+		pos.needsUpdate = true;
+		
+		let vel = this.masses.geometry.getAttribute("velocity");
+		let va = vel.array;
+		va.fill(0);
+		vel.needsUpdate = true;
+		
+		if (newIndex) {
+			this.springs.geometry.setIndex(new THREE.BufferAttribute(new Uint16Array(this.springs.indices), 1));
+		} else {
+			let index = this.springs.geometry.getIndex();
+			let ia = index.array;
+			for (let i=0; i<ia.length; i++) ia[i] = this.springs.indices[i];
+			index.needsUpdate = true;
+		}
 	},
 	update: function(dt) {
 		let F = this.masses.geometry.getAttribute("force");
@@ -119,22 +135,6 @@ Object.assign(MassesOnSprings.prototype, {
 		Fa.fill(0);
 		this.springs.update();
 		this.masses.update(dt);
-	},
-	restart: function() {
-		let pos = this.masses.geometry.getAttribute("position");
-		let pa = pos.array;
-		for (let i=0; i < 3*this.N; i++) pa[i] = this.p0[i];
-		pos.needsUpdate = true;
-		
-		let vel = this.masses.geometry.getAttribute("position");
-		let va = vel.array;
-		va.fill(0);
-		vel.needsUpdate = true;
-		
-		let index = this.springs.geometry.getIndex();
-		let ia = index.array;
-		for (let i=0; i<2*this.N; i++) ia[i] = this.springs.indices[i];
-		index.needsUpdate = true;
 	}
 });
 
@@ -216,7 +216,7 @@ Object.assign(Springs.prototype, {
 			let pi = new THREE.Vector3().fromArray(pa, 3*i);
 			let pj = new THREE.Vector3().fromArray(pa, 3*j);
 			let diff = new THREE.Vector3().copy(pi).sub(pj);
-			let delta = diff.length() - this.L0[a];
+			let delta = diff.length() - this.L[a];
 			diff.normalize();  //direction of force
 			let T = this.k[a]*delta;
 			if (Math.abs(T) > this.B[a]) {
