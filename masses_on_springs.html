@@ -1,0 +1,297 @@
+<html>
+<head>
+	<title>Masses on springs</title>
+	<script src="three.js-master/build/three.min.js"></script>
+	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+	<script src="three.js-master/examples/js/libs/dat.gui.min.js"></script>
+	
+	<script src="Random.js"></script>
+</head>
+
+<body>
+<script>
+/*
+Plans for the future:
+- General bug fixing.
+- Improve visualization, particularly of particle sizes (dependent on mass), and possibly of spring stress.
+- Try to optimize some calculations/visualization using GPU. Currently several attributes remain unused in the shaders.
+- Add more parameters and configurability.
+- Add more ways to initialize the graph. Maybe from files too.
+- Add saving to file.
+- Add some optimization towards given goals with given constraints. (For fun and learning.)
+- Add forced motion of single nodes, and of the entire frame of reference (all the fixed nodes), to see the response of the graph.
+
+Limitations:
+- The springs are massless.
+- The springs do not bend (and they rotate freely in the massive joints).
+- There is no collision handling.
+
+I do not currently plan to make any changes that remove the abovementioned limitations. The simulator may still be a bit useful for cases where collisions aren't an issue (typically static cases), and where the forces are mostly normal (typically trusses).
+Giving springs mass in the motion calculation would add a lot of complexity, but it can be useful for some optimization calculations to instead calculate an estimated spring mass from length and stiffness.
+*/
+
+"use strict";
+
+//Globals
+var clock, renderer, scene, camera, controls;
+var mos;
+
+var gc = {
+	g: 9.81,
+	seed: 0
+}
+
+function MassesOnSprings(N, damping="Linear", C=0.5) {
+	THREE.Group.call(this);
+
+	this.N = N;
+	this.damping = damping;
+	this.C = C;
+	//Initial values:
+	this.p0 = new Float32Array(3*this.N).fill(0); //positions
+	
+	//Relevant for points and lines:
+	let geom = new THREE.BufferGeometry();
+	geom.addAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(3*N).fill(0), 3));
+
+	//For points only:
+	geom.addAttribute("velocity", new THREE.Float32BufferAttribute(new Float32Array(3*N).fill(0), 3));
+	geom.addAttribute("force", new THREE.Float32BufferAttribute(new Float32Array(3*N).fill(0), 3));
+	geom.addAttribute("mass", new THREE.Float32BufferAttribute(new Float32Array(2*N).fill(0), 1));
+
+	//this.geometry = geom;
+	
+	this.masses = new Masses(geom);
+	this.springs = new Springs(geom);
+	this.add(this.masses, this.springs);
+}
+MassesOnSprings.prototype = Object.create(THREE.Group.prototype);
+Object.assign(MassesOnSprings.prototype, {
+	constructor: MassesOnSprings,
+	initRandom: function(seed, pFixed=0.1) {
+		Random.seed(seed);
+		
+		//masses
+		let p0 = this.p0;
+		let m = this.masses.geometry.getAttribute("mass");
+		let ma = m.array;
+		for (let i=0; i<this.N; i++) {
+			p0[3*i] = Random.rand()*100-50;
+			p0[3*i+1] = Random.rand()*100-50;
+			p0[3*i+2] = Random.rand()*100-50;
+			if (Random.rand()<pFixed) ma[i] = 0;
+			else ma[i] = Random.rand()*8;
+		}
+		m.needsUpdate = true;
+		let pos = this.masses.geometry.getAttribute("position");
+		let pa = pos.array;
+		for (let i=0; i < 3*this.N; i++) pa[i] = p0[i];
+		pos.needsUpdate = true;
+		
+		//springs
+		let springs = this.springs;
+		springs.indices = [] //Initial indices
+		springs.L0 = []; //Initial lengths
+		springs.k = []; //Stiffnesses
+		springs.B = []; //breaking strengths
+		let indices = springs.indices;
+		let L0 = springs.L0;
+		let k = springs.k;
+		let B = springs.B;
+		for (let i=0; i<this.N-1; i++) {
+			let pi = new THREE.Vector3().fromArray(p0, 3*i);
+			for (let j=i+1; j<this.N; j++) {
+				if (Random.rand()<0.1) {
+					indices.push(i);
+					indices.push(j);
+					k.push(Random.rand()*1000);
+					B.push(Random.rand()*800);
+					L0.push(new THREE.Vector3().fromArray(this.p0, 3*j).sub(pi).length());
+				}
+			}
+		}
+		
+		springs.geometry.setIndex(new THREE.BufferAttribute(new Uint16Array(indices), 1));
+	},
+	update: function(dt) {
+		let F = this.masses.geometry.getAttribute("force");
+		let Fa = F.array;
+		Fa.fill(0);
+		this.springs.update();
+		this.masses.update(dt);
+	},
+	restart: function() {
+		let pos = this.masses.geometry.getAttribute("position");
+		let pa = pos.array;
+		for (let i=0; i < 3*this.N; i++) pa[i] = this.p0[i];
+		pos.needsUpdate = true;
+		
+		let vel = this.masses.geometry.getAttribute("position");
+		let va = vel.array;
+		va.fill(0);
+		vel.needsUpdate = true;
+		
+		let index = this.springs.geometry.getIndex();
+		let ia = index.array;
+		for (let i=0; i<2*this.N; i++) ia[i] = this.springs.indices[i];
+		index.needsUpdate = true;
+	}
+});
+
+function Masses(geometry) {
+	THREE.Points.call(this, geometry,
+			new THREE.PointsMaterial({
+				color: 0xcc3333,
+				size: 5,
+				sizeAttenuation: true}));	
+	
+}
+Masses.prototype = Object.create(THREE.Points.prototype);
+Object.assign(Masses.prototype, {
+	constructor: Masses,
+	update: function(dt) {
+		let pos = this.geometry.getAttribute("position");
+		let pa = pos.array;
+		let vel = this.geometry.getAttribute("velocity");
+		let va = vel.array;
+		let F = this.geometry.getAttribute("force");
+		let Fa = F.array;
+		let m = this.geometry.getAttribute("mass");
+		let ma = m.array;
+		
+		let C = this.parent.C;
+		let damping = this.parent.damping;
+
+		for (let i = 0; i < ma.length; i++) {
+			let mi = ma[i];
+			let Fi = new THREE.Vector3().fromArray(Fa, 3*i);
+			let vi = new THREE.Vector3().fromArray(va, 3*i);
+			let pi = new THREE.Vector3().fromArray(pa, 3*i);
+			
+			if (mi !== 0) {
+				//Gravity
+				Fi.z -= mi*gc.g;
+				
+				//Drag/damping
+				if (damping=="Quadratic") {
+					Fi.addScaledVector(vi, -C*vi.length());
+				} else if (damping=="Linear") {
+					Fi.addScaledVector(vi, -C);
+				}
+				
+				//Simple Euler's method integration. Room for improvements.
+				//acceleration:
+				vi.addScaledVector(Fi, dt/mi);
+				vi.toArray(va, 3*i);
+				//motion:
+				pi.addScaledVector(vi, dt);
+				pi.toArray(pa, 3*i);
+			}
+		}
+		pos.needsUpdate = true;
+		vel.needsUpdate = true;
+		F.needsUpdate = true; //not needed, really
+	}
+});
+
+function Springs(geometry) {
+	THREE.LineSegments.call(this, geometry, new THREE.LineBasicMaterial({color: 0x33cc33}));	
+}
+Springs.prototype = Object.create(THREE.LineSegments.prototype);
+Object.assign(Springs.prototype, {
+	constructor: Springs,
+	update: function() {
+		let indices = this.geometry.getIndex();
+		let ia = indices.array;
+		let pos = this.geometry.getAttribute("position");
+		let pa = pos.array;
+		let F = this.geometry.getAttribute("force");
+		let Fa = F.array;
+		
+		for (let a = 0; a < this.k.length; a++) {
+		
+			let [i,j] = [ia[2*a], ia[2*a+1]];
+			if (i===j) continue;
+
+			let pi = new THREE.Vector3().fromArray(pa, 3*i);
+			let pj = new THREE.Vector3().fromArray(pa, 3*j);
+			let diff = new THREE.Vector3().copy(pi).sub(pj);
+			let delta = diff.length() - this.L0[a];
+			diff.normalize();  //direction of force
+			let T = this.k[a]*delta;
+			if (Math.abs(T) > this.B[a]) {
+				ia[2*a+1] = i; //Collapse and deactivate
+				indices.needsUpdate = true;
+			} else {
+				let Fi = new THREE.Vector3().fromArray(Fa, 3*i);
+				Fi.addScaledVector(diff, -T);
+				Fi.toArray(Fa, 3*i);
+				let Fj = new THREE.Vector3().fromArray(Fa, 3*j);
+				Fi.addScaledVector(diff, T);
+				Fi.toArray(Fa, 3*j);
+			}
+		}
+		F.needsUpdate = true; //does not really matter yet.
+	}
+});
+
+(function main() {
+	//Renderer setup
+	clock = new THREE.Clock(/*false*/); //false vil skru av autostart
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	container.appendChild(renderer.domElement);
+
+	//Scene setup:
+	scene = new THREE.Scene();
+	scene.add(new THREE.AxisHelper(50));
+	//scene.add(new THREE.GridHelper(50, 10));
+	scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+	
+	//Mass-spring system:
+	mos = new MassesOnSprings(100);
+	mos.initRandom();
+	scene.add(mos);
+
+	//Camera setup
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 1, 100000);
+	window.addEventListener('resize', function() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}, false);
+	camera.up.set(0,0,1);
+	camera.position.set(60, 140, 90);
+	camera.lookAt(scene.position);
+	scene.add(camera);
+	
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	
+	//GUI:
+	var gui = new dat.GUI();
+	gui.add(gc, "g", 0, 20);
+	gui.add(mos, "damping", ["None", "Linear", "Quadratic"]);
+	gui.add(mos, "C", -0.5, 3);
+	gui.add(gc, "seed", 1, 0x7fffffff, 1).onChange(function (value) {
+		mos.initRandom(value);
+	});
+	gui.add(mos, "restart");
+
+	animate();
+})();
+
+function animate() {
+	requestAnimationFrame(animate);
+	var dt = 1/60; //fixed time step
+
+	mos.update(dt);
+	
+	renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
