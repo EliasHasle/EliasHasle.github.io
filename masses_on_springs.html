@@ -12,7 +12,9 @@
 <script>
 /*
 Plans for the future:
-- General bug fixing.
+- Maybe some general bug fixing.
+- Code cleanup and documentation.
+- Maybe calculate with stress and relative strain instead of tension, stiffness and absolute strain.
 - Improve visualization, particularly of particle sizes (dependent on mass), and possibly of spring stress.
 - Try to optimize some calculations/visualization using GPU. Currently several attributes remain unused in the shaders.
 - Add more parameters and configurability.
@@ -68,7 +70,7 @@ function MassesOnSprings(N, damping="Linear", C=0.5) {
 MassesOnSprings.prototype = Object.create(THREE.Group.prototype);
 Object.assign(MassesOnSprings.prototype, {
 	constructor: MassesOnSprings,
-	initRandom: function(seed, pFixed=0.1) {
+	initRandom: function(seed, pFixed=0.25, pConnect=0.1) {
 		Random.seed(seed);
 		
 		//masses
@@ -94,15 +96,17 @@ Object.assign(MassesOnSprings.prototype, {
 		let L = springs.L;
 		let k = springs.k;
 		let B = springs.B;
+		let c = 0;
 		for (let i=0; i<this.N-1; i++) {
 			let pi = new THREE.Vector3().fromArray(p0, 3*i);
 			for (let j=i+1; j<this.N; j++) {
-				if (Random.rand()<0.1) {
+				if (Random.rand()<pConnect) {
 					indices.push(i);
 					indices.push(j);
-					k.push(Random.rand()*1000);
-					B.push(Random.rand()*800);
 					L.push(new THREE.Vector3().fromArray(this.p0, 3*j).sub(pi).length());
+					k.push(Random.rand()*1000*L[c]);
+					B.push(Random.rand()*25000);
+					c++;
 				}
 			}
 		}
@@ -211,7 +215,7 @@ Object.assign(Springs.prototype, {
 		for (let a = 0; a < this.k.length; a++) {
 		
 			let [i,j] = [ia[2*a], ia[2*a+1]];
-			if (i===j) continue;
+			if (i===j) continue; //broken spring
 
 			let pi = new THREE.Vector3().fromArray(pa, 3*i);
 			let pj = new THREE.Vector3().fromArray(pa, 3*j);
@@ -275,7 +279,7 @@ Object.assign(Springs.prototype, {
 	var gui = new dat.GUI();
 	gui.add(gc, "g", 0, 20);
 	gui.add(mos, "damping", ["None", "Linear", "Quadratic"]);
-	gui.add(mos, "C", -0.5, 3);
+	gui.add(mos, "C", 0, 3);
 	gui.add(gc, "seed", 1, 0x7fffffff, 1).onChange(function (value) {
 		mos.initRandom(value);
 	});
