@@ -9,10 +9,10 @@ Todo:
 var Random = function() {
 	var state = 123456789;
 
-	var seed = function(s=Date.now()) {
+	var seed = function(s) {
 		if (s === 0 || isNaN(s)) {
-			console.warn("Invalid seed ignored.");
-			return;
+			console.log("Invalid seed (" + s + "). Using time instead.");
+			s = Date.now();
 		}
 		state = s;
 	};

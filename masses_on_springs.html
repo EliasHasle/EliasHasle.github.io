@@ -282,7 +282,7 @@ Object.assign(Springs.prototype, {
 	gui.add(gc, "g", 0, 20);
 	gui.add(mos, "damping", ["None", "Linear", "Quadratic"]);
 	gui.add(mos, "C", 0, 3);
-	gui.add(gc, "seed", 1, 0x7fffffff, 1).onChange(function (value) {
+	gui.add(gc, "seed", 1<<31, 0x7fffffff, 1).onChange(function (value) {
 		mos.initRandom(value);
 	});
 	gui.add(mos, "restart");
