@@ -1,6 +1,10 @@
 /*This is a simple Pseudo-Random Number Generator inspired by an example xorshift32 implementation found on Wikipedia.
 
-No rights are claimed (or infringed, I think).*/
+No rights are claimed (or infringed, I think).
+
+Todo:
+- Switch to 64 bit internal state, so that an extracted 32 bit component is not 2^32 periodic. This will require some tricks, as bitwise operations in javascript work on 32 bits only, natively.
+*/
 
 var Random = function() {
 	var state = 123456789;
