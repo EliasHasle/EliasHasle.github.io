@@ -1,0 +1,161 @@
+<html>
+<head></head>
+<body>
+<script>
+//Lazy recursive calculation over a binary tree.
+
+"use strict";
+
+var LazyBinaryTree;
+{
+	let priv = {};
+	let idCounter = 0;
+
+	LazyBinaryTree = function (left, right) {
+			Object.defineProperty(this, "id", {
+					value: idCounter++,
+					writable: false,
+					enumerable: false
+			});
+			Object.defineProperty(this, "type", {
+					value: "LazyBinaryTree",
+					writable: false,
+					enumerable: false
+			});
+			priv[this.id] = {
+				version: -1,
+				caches: {},
+				parent: null
+			};
+			this.left = left;
+			this.right = right;
+	};
+	
+	Object.defineProperties(LazyBinaryTree.prototype, {
+		version: {
+			enumerable: false,
+			configurable: false,
+			get: function() {
+				return priv[this.id].version;
+			},
+			set: function(value) {
+				//console.log("version setter invoked. +1 unconditionally");
+				priv[this.id].version++;
+				if (this.parent) this.parent.version++;
+			}
+		},
+		parent: {
+			enumerable: true,
+			configurable: false,
+			get: function() {
+				return priv[this.id].parent;
+			},
+			set: function(p) {
+				priv[this.id].parent = p;
+			}
+		},
+		left: {
+			enumerable: true,
+			configurable: false,
+			get: function() {
+				return priv[this.id].left;
+			},
+			set: function(node) {
+				priv[this.id].left = node;
+				if (node instanceof LazyBinaryTree) {
+					if (node.parent) {
+						if (node.parent.left === node) node.parent.left = undefined;
+						else node.parent.right = undefined;
+					}
+					node.parent = this;
+				}
+				this.version++;
+			}
+		},
+		right: {
+			enumerable: true,
+			configurable: false,
+			get: function() {
+				return priv[this.id].right;
+			},
+			set: function(node) {
+				priv[this.id].right = node;
+				if (node instanceof LazyBinaryTree) {
+					if (node.parent) {
+						if (node.parent.left === node) node.parent.left = undefined;
+						else node.parent.right = undefined;
+					}
+					node.parent = this;
+				}
+				this.version++;
+			}
+		}
+	});
+
+	function addLazyCalculation(name, f, def) {
+		Object.defineProperty(LazyBinaryTree.prototype, name, {
+			enumerable: true,
+			configurable: false,
+			get: function() {
+				//console.log("Running getter for " + name + ".");
+				let caches = priv[this.id].caches;
+				if (caches["get"+name] === undefined || caches["get"+name].version !== this.version) {
+					caches["get"+name] = {
+						version: this.version
+					};
+				}
+				let cache = caches["get"+name];
+				var result;
+				if (cache.value) {
+					result = cache.value;
+				} else {
+					//Calculation start
+					let lv = this.left instanceof LazyBinaryTree ? this.left[name] : this.left !== undefined ? this.left : def;
+					let rv = this.right instanceof LazyBinaryTree ? this.right[name] : this.right !== undefined ? this.right : def;
+					result = f(lv, rv);
+					//Calculation end
+					cache.value = result;
+				}
+				return result;
+			}
+		});
+	}
+	
+	let fs = [
+		["sum",(a,b)=>a+b,0],
+		["product", (a,b)=>a*b, 1],
+		["concatenation", (a,b)=>a.toString()+b.toString(), ""]
+	];
+	
+	for (let [name, f, def] of fs) {
+		addLazyCalculation(name, f, def);
+	}
+
+	Object.assign(LazyBinaryTree.prototype, {
+		dispose: function() {
+			delete priv[this.id];
+		}
+	});
+}
+
+var twig1 = new LazyBinaryTree(1,0);
+var twig2 = new LazyBinaryTree(2,3);
+var twig3 = new LazyBinaryTree(7,6);
+var twig4 = new LazyBinaryTree(4,6);
+
+var branch1 = new LazyBinaryTree(twig1, twig2);
+var branch2 = new LazyBinaryTree(twig3, twig4);
+var root = new LazyBinaryTree(branch1,branch2);
+
+console.log("twig1.right=" + twig1.right);
+console.log("root.concatenation="+root.concatenation);
+console.log("root.sum="+root.sum);
+console.log("root.product="+root.product);
+console.log("Setting twig1.right to 2.");
+twig1.right = 2;
+console.log("root.concatenation="+root.concatenation);
+console.log("root.sum="+root.sum);
+console.log("root.product="+root.product);
+</script>
+</body>
+</html>
