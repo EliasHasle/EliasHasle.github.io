@@ -1,0 +1,97 @@
+<html>
+<head>
+	<title>Three-point perspective test</title>
+	<script src="three.js-master/build/three.min.js"></script>
+	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+	<script src="three.js-master/examples/js/libs/stats.min.js"></script>
+	<script src="dat.gui-master/build/dat.gui.min.js"></script>
+</head>
+
+<body>
+<script>
+"use strict";
+
+//Globals
+var clock, renderer, scene, camera, controls, stats, gui;
+
+var container;
+
+(function main() {
+	//Renderer setup
+	clock = new THREE.Clock(/*false*/); //false vil skru av autostart
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	container.appendChild(renderer.domElement);
+	stats = new Stats();
+	document.body.appendChild(stats.domElement);
+	
+	//Scene setup:
+	scene = new THREE.Scene();
+	//scene.add(new THREE.GridHelper(S, 8));
+	scene.add(new THREE.AmbientLight(0xffffff, 1));
+	scene.add(function(){
+		let sun = new THREE.DirectionalLight(0xffffff, 1);
+		sun.position.set(54, 74, -87);
+		return sun;
+	}());
+
+	//Fake cube with lines to vanishing points:
+	container = new THREE.Group();
+	for (let i = 0; i < 2; i++) {
+		for (let j = 0; j < 2; j++) {
+			for (let k = 0; k < 2; k++) {
+				let ah = new THREE.AxisHelper(1000000);
+				ah.position.set(-(i-0.5), -(j-0.5), -(k-0.5));
+				ah.scale.set((i-0.5)*2,(j-0.5)*2,(k-0.5)*2);
+				container.add(ah);
+			}
+		}
+	}
+	container.add(new THREE.Mesh(
+		new THREE.BoxBufferGeometry(1,1,1),
+		new THREE.MeshPhongMaterial({color: 0xcccccc, transparent: true, opacity: 0.8})
+	));
+	container.scale.set(100,100,100);
+	scene.add(container);
+	
+	/*let ah = new THREE.AxisHelper(1000);
+	scene.add(ah);*/
+	
+	//Camera setup
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 1, 200000);
+	window.addEventListener('resize', function() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}, false);
+	camera.position.set(1000, 1000, 1000);
+	camera.lookAt(scene.position);
+	scene.add(camera);
+	
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	
+	gui = new dat.GUI();
+	gui.add(container.scale, "x", 10, 1000).name("Length");
+	gui.add(container.scale, "y", 10, 1000).name("Breadth");
+	gui.add(container.scale, "z", 10, 1000).name("Height");
+	gui.add(camera, "fov", 1, 179).onChange(function (value) {
+		camera.updateProjectionMatrix();
+	});
+
+	animate();
+})();
+
+function animate() {
+	requestAnimationFrame(animate);
+	stats.update();
+	//var dt = clock.getDelta();
+	//var t = clock.getElapsedTime();
+	renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
