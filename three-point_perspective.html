@@ -3,7 +3,6 @@
 	<title>Three-point perspective test</title>
 	<script src="three.js-master/build/three.min.js"></script>
 	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
-	<script src="three.js-master/examples/js/libs/stats.min.js"></script>
 	<script src="dat.gui-master/build/dat.gui.min.js"></script>
 </head>
 
@@ -12,7 +11,7 @@
 "use strict";
 
 //Globals
-var clock, renderer, scene, camera, controls, stats, gui;
+var clock, renderer, scene, camera, controls, gui;
 
 var container;
 
@@ -26,8 +25,6 @@ var container;
 	renderer = new THREE.WebGLRenderer({antialias: true});
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	container.appendChild(renderer.domElement);
-	stats = new Stats();
-	document.body.appendChild(stats.domElement);
 	
 	//Scene setup:
 	scene = new THREE.Scene();
@@ -87,7 +84,6 @@ var container;
 
 function animate() {
 	requestAnimationFrame(animate);
-	stats.update();
 	//var dt = clock.getDelta();
 	//var t = clock.getElapsedTime();
 	renderer.render(scene, camera);
