@@ -1,0 +1,140 @@
+<html>
+<head>
+	<title>Headtrackr test</title>
+	<script src="three.js-master/build/three.js"></script>
+	<!--<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>-->
+	<script src="headtrackr/headtrackr.js"></script>
+	<script src="dat.gui-master/build/dat.gui.js"></script>
+</head>
+
+<body>
+<script>
+"use strict";
+
+//https needed for webcam access
+if (window.location.protocol === "http") {
+	window.location.protocol = "https";
+}
+
+//Globals
+var /*clock, */renderer, scene, camera, camContainer, gui, ht;//, controls;
+
+(function main() {
+	//Renderer setup
+	//clock = new THREE.Clock(/*false*/); //false vil skru av autostart
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	container.appendChild(renderer.domElement);
+	
+	//Scene setup:
+	scene = new THREE.Scene();
+	scene.add(new THREE.GridHelper(1000,100));
+	scene.add(new THREE.AxisHelper(1000));
+	scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+	let sun = new THREE.DirectionalLight(0xffffee, 1);
+	sun.position.set(30, 2, -4);
+	scene.add(sun);
+	let pl = new THREE.PointLight(0xddddff, 1);
+	pl.position.set(-300, 200, -150);
+	scene.add(pl);
+	
+	let box = new THREE.Mesh(
+		new THREE.BoxBufferGeometry(100,100,100),
+		new THREE.MeshPhongMaterial({color: 0x00ff00}));
+	box.rotation.set(0.64, -0.3, 1);
+	box.position.y = 50;
+	scene.add(box);
+	let ball = new THREE.Mesh(
+		new THREE.SphereBufferGeometry(40, 24, 12),
+		new THREE.MeshPhongMaterial({color: 0xff0000}));
+	ball.position.z = 60;
+	scene.add(ball);
+
+	//Camera setup
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 1, 100000);
+	camera.setFocalLength(600);
+	camera.position.z = 600;
+	
+	window.addEventListener('resize', function() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}, false);
+	//document.documentElement.webkitRequestFullscreen();
+	
+	camContainer = new THREE.Group();
+	camContainer.add(camera);
+	camContainer.position.set(3000, 1500, 2000);
+	let m = new THREE.Matrix4();
+	m.lookAt(camContainer.position, new THREE.Vector3(0,50,0), camContainer.up);
+	camContainer.quaternion.setFromRotationMatrix(m);
+	scene.add(camContainer);
+	/*controls = new THREE.OrbitControls(camContainer, renderer.domElement);
+	controls.target.set(0,0,0);*/
+	
+	let vid = document.createElement("video");
+	vid.autoplay = true;
+	vid.loop = true; //right?
+	let canv = document.createElement("canvas");
+	canv.width = 640; //dimensions necessary??
+	canv.height = 480;
+	Object.assign(canv.style, {
+		position: "fixed",
+		top: 0,
+		left: 0,
+		"z-index": 10,
+		display: "None"
+	});
+	//document.body.appendChild(canv);
+	//canv.appendChild(vid);
+
+	document.addEventListener("headtrackrStatus", function(e) {
+		console.log(e.status);
+	});
+	
+	ht = new headtrackr.Tracker({/*cameraOffset:0,*//*detectionInterval: 1000/60*/});//, fadeVideo: true, calcAngles: true});
+	ht.init(vid, canv);
+	
+	/*gui = new dat.GUI();
+	let offset = {x: 0, y: 115};
+	gui.add(offset, "x", -200, 200).name("OffsetX");
+	gui.add(offset, "y", -200, 200).name("OffsetY");*/
+	//gui.add(ht, "fov", 30, 160).name("CameraVFOV");	
+	
+	ht.start();
+	
+	document.addEventListener("headtrackingEvent", function(e) {
+		//I will use millimeters:
+		let headX = -10*e.x;//-offset.x;
+		let headY = 10*e.y;//-offset.y;
+		let headZ = 10*e.z;
+		//console.log("head position=(%d,%d,%d)", headX,headY, headZ);
+		camera.setFocalLength(headZ);
+		camera.position.z = headZ;
+		let {width: w, height: h} = renderer.getSize();
+		let factor = (96/25.4)*window.devicePixelRatio;
+		//This does not account for non-fullscreen renderer.
+		let screenX = headX*factor;
+		let screenY = headY*factor;
+		
+		camera.setViewOffset(w, h, screenX, screenY, w, h);
+		camera.updateProjectionMatrix();
+		//console.log("headtrackingEvent: camera.position.z=%2f, camera.fov=%.2f ", camera.position.z, camera.fov, "camera.view=", camera.view);
+	});
+
+	animate();
+})();
+
+function animate() {
+	requestAnimationFrame(animate);
+	//var dt = clock.getDelta();
+	//var t = clock.getElapsedTime();
+	renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
