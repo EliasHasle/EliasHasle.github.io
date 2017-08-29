@@ -1,0 +1,4 @@
+# robots.txt for eliashasle.github.io
+
+User-agent: *
+Disallow: server.py #Used for offline testing only
