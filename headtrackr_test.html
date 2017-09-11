@@ -11,7 +11,17 @@
 <script>
 "use strict";
 
-//(This does not properly account for non-fullscreen renderer.)
+/*
+See:
+https://www.auduno.com/headtrackr/documentation/reference.html
+https://www.auduno.com/2012/06/15/head-tracking-with-webrtc/
+http://web.mit.edu/ebfox/Public/main.pdf
+
+Plan: Improve headtrackr library, then improve demo. The goal is to have a cool (scary) demo with eye-oriented anaglyph rendering.
+Add better calibration control to library and to demo. (Modifiable camera offsets, fov, assumed head size etc. during use.)
+Try to adapt camshift to use hue,saturation and ignore brightness.
+Try to do detection and tracking of colored 3D glasses instead of head. Should be easier, really.
+*/
 
 //https needed for webcam access
 if (window.location.protocol === "http") {
