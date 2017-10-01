@@ -24,12 +24,10 @@ the picture from the observer camera will be the same for every possible project
 "use strict";
 
 //Globals
-var clock, renderer;
-var simulatedScene, simulationCubeCamera, idealSimulatorScene, camera;
+var renderer, simulatedScene, simulationCubeCamera, idealSimulatorScene, camera;
 
 (function main() {
 	//Renderer setup
-	clock = new THREE.Clock(/*false*/); //false vil skru av autostart
 	document.body.style = "overflow: hidden;";
 	var container = document.createElement("div");
 	container.style = "position: absolute; top: 0; left: 0;"
