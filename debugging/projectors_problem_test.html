@@ -1,0 +1,84 @@
+<html>
+<head>
+	<title>Projectors problem test</title>
+	<script src="../three.js-master/build/three.js"></script>
+</head>
+
+<body>
+<script>
+/*
+Problem: Certain straight lines (the z axis in this example) are not projected to straight lines when projecting the picture of a rotated cubecamera with the cube shader on a non-cube screen and viewing the screen from the ideal position using a perspective camera. Why? What am I getting wrong?
+
+My understanding of the cube camera is that it consists of 6 perspective cameras with fov=90 and aspect=1, each aligned to a positive or negative main axis, to cover the whole space (between near and far). It can be positioned and rotated freely (and even scaled and skewed, I suppose), and then the generated images will account for this. The images are a CubeTexture, which is more or less just 6 square textures. The "cube size" in the parameters is the resolution of the square textures.
+
+My understanding of the cube shader and of textureCube is that the vector supplied is treated as a direction only, and that the color is obtained by intersecting a ray in that direction (from the center) with the surface of the cube.
+
+When positioning a perspective camera, my understanding is that the position of the camera is the eye position, not the projection plane position or something else.
+
+With this in mind, I would expect that:
+If the projection surface geometry covers the whole view of the observer (perspective) camera and the observer camera is positioned in the same origin as the cube shader uses,
+then even if the cube camera is rotated,
+the picture from the observer camera will be the same for every possible projection surface geometry (except for some minor sampling/aliasing artifacts). Only when the observer camera or cube shader origin were moved, I would expect differences caused by the geometry.
+*/
+
+"use strict";
+
+//Globals
+var clock, renderer;
+var simulatedScene, simulationCubeCamera, idealSimulatorScene, camera;
+
+(function main() {
+	//Renderer setup
+	clock = new THREE.Clock(/*false*/); //false vil skru av autostart
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	container.appendChild(renderer.domElement);
+	
+	//Setup of simulated scene:	
+	simulatedScene = new THREE.Scene();
+
+	simulatedScene.add(new THREE.AxisHelper(500));
+
+	//Cubecamera setup
+	simulationCubeCamera = new THREE.CubeCamera(5, 1000, 2048);
+	simulationCubeCamera.position.set(0,50,0);
+	//Comment out CubeCamera rotation to see the difference:
+	simulationCubeCamera.rotation.z = -0.25*Math.PI;
+	simulatedScene.add(simulationCubeCamera);
+	simulationCubeCamera.update(renderer, simulatedScene);	
+	
+	//Define (arbitrary mesh-based) projector screen geometry:
+	//Box geometry seems to work. Cylinder geometry works(?) for non-rotated CubeCamera:
+	var screenGeometry = /*new THREE.BoxBufferGeometry(5,5,5, 1,1,1);*/new THREE.CylinderBufferGeometry(5,5,5, 12288, 1);
+	
+	//Make "ideal" projection on the screen geometry using cube shader:
+	idealSimulatorScene = new THREE.Scene();
+	let cubeShader = THREE.ShaderLib.cube;
+	cubeShader.uniforms.tCube.value = simulationCubeCamera.renderTarget.texture;
+	let idealScreenMat = new THREE.ShaderMaterial({
+		uniforms: cubeShader.uniforms,
+		vertexShader: cubeShader.vertexShader,
+		fragmentShader: cubeShader.fragmentShader,
+		//depthWrite: false,
+		side: THREE.BackSide});
+		
+	var idealProjectorScreen = new THREE.Mesh(
+		screenGeometry,
+		idealScreenMat	
+	);
+	idealSimulatorScene.add(idealProjectorScreen);
+	
+	//Observer camera setup:
+	camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.01, 15);
+	camera.rotation.set(0.6, -4, 0);
+
+	renderer.render(idealSimulatorScene, camera);
+})();
+
+</script>
+</body>
+</html>
