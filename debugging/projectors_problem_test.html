@@ -45,7 +45,7 @@ var renderer, simulatedScene, simulationCubeCamera, idealSimulatorScene, camera;
 	simulationCubeCamera = new THREE.CubeCamera(5, 1000, 2048);
 	simulationCubeCamera.position.set(0,50,0);
 	//Comment out CubeCamera rotation to see the difference:
-	simulationCubeCamera.rotation.z = -0.25*Math.PI;
+	//simulationCubeCamera.rotation.z = -0.25*Math.PI;
 	simulatedScene.add(simulationCubeCamera);
 	simulationCubeCamera.update(renderer, simulatedScene);	
 	
@@ -72,7 +72,8 @@ var renderer, simulatedScene, simulationCubeCamera, idealSimulatorScene, camera;
 	
 	//Observer camera setup:
 	camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.01, 15);
-	camera.rotation.set(0.6, -4, 0);
+	//camera.rotation.set(0.6, -4, 0);
+	camera.lookAt(new THREE.Vector3(5,-50,35));
 
 	renderer.render(idealSimulatorScene, camera);
 })();
