@@ -1,0 +1,109 @@
+<html>
+<head>
+	<title>PSO with parameters oscillating in dissonance</title>
+	<!--Graphics library (not mine)-->
+	<script src="three.js-master/build/three.js"></script>
+	<!--GUI library (not mine)-->
+	<script src="dat.gui-master/build/dat.gui.js"></script>
+	<!--My scripts:-->
+	<script src="Swarm.js"></script>
+	<script src="PSO.js"></script>
+	<script src="MonoPlot2D.js"></script>
+	<script src="Vector2D_operations.js"></script>
+</head>
+
+<body>
+<script>
+"use strict";
+
+/*TODO: Maybe drop three.js in favor of pure WebGL.*/
+
+//Shorthands
+var PI = Math.PI, cos = Math.cos, sin = Math.sin, max=Math.max, min=Math.min, abs=Math.abs, random=Math.random, exp=Math.exp;
+
+//Globals for graphics
+var renderer, scene, camera;
+
+//Globals for simulation
+var pso;
+
+//Game loop function
+var animate = (function() {
+	let t_start = 0.001*performance.now();
+	let ot = t_start;
+	return function(t) {
+		t *= 0.001;
+		let dt = (t-ot);// || 0.0000001; //0 not allowed
+		ot = t;
+		
+		let phi = 0.5*(1+Math.sqrt(5));
+		pso.inertia = 0.95+0.05*Math.cos(t);
+		pso.cognitive = 0.05*(1+Math.cos(phi*t));
+		pso.social = 0.05*(1+Math.cos(phi**2*t));
+		pso.update(t, dt);
+		
+		renderer.render(scene, camera);
+		requestAnimationFrame(animate);
+	};
+})();
+
+//INITIALISATION
+(function main() {
+	//SIMULATION PARAMETERS:
+	let N = 150; //Number of pso agents
+	let W = 800; //Space width
+	let H = 600; //Space height
+	let S = 5; //point radius
+	
+	//Renderer setup
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	Object.assign(container.style, {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		width: W,
+		height: H
+	});
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(W, H);
+	//renderer.setClearColor(0x000000);
+	container.appendChild(renderer.domElement);
+	
+	//Scene setup:
+	scene = new THREE.Scene();
+	scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+	//Camera setup
+	camera = new THREE.OrthographicCamera(0, W, H, 0, 1, 200);
+	camera.position.set(0, 0, 100);
+	scene.add(camera);
+	
+	//Define cost function:
+	let f = function([x,y]) {
+		let xr = x/W-0.5;
+		let yr = y/H-0.5;
+		return 2*(((xr**2+yr**2)/2)**0.5)*(0.5+0.45*Math.cos(10*xr))*(0.5+0.45*Math.cos(10*yr));
+		//return (xr**2+yr**2)**(1/2);
+		//return 100000000000+0.003*Math.abs(x-400) + Math.cos(x+y) -Math.sin(0.0001*x*y);
+		//return ((x-333)**2+(y-222)**2)*(0.1+Math.cos(x)**2);
+	};
+	
+	//Create the landscape:
+	let landscape = new MonoPlot2D(W,H,f);
+	scene.add(landscape);
+	
+	//Create the PSO pso:
+	pso = new PSO2D(["x","y"], [0,0], [W,H], undefined,
+		f, 
+		1, 0.1, 0.01, 10000, 1, true);
+	scene.add(pso);
+	
+	//let gui = new dat.GUI();
+	
+	requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
