@@ -1,7 +1,7 @@
 "use strict";
 
 //Helper function for making a sample from (possibly infinite) bounds mi, ma.
-function sample(mi,ma) {
+function randomPosition(mi,ma) {
 	let infMin = false;
 	if (mi === -Infinity)
 		infMin = true;
@@ -22,6 +22,12 @@ function sample(mi,ma) {
 	return (infMin ? (ma+L) : (mi-L));
 }
 
+function randomVelocity(pmi,pma) {
+	let p = randomPosition(pmi,pma);
+	let s = Math.random() < 0.5 ? -1 : 1;
+	return 0.5*p*s;
+}
+
 //Perform a full PSO within a single function call:
 function PSO(parNames, parMins, parMaxes, filter, costFun, inertiaFun=function(i,iterations) {return (1/3)*(1-i/iterations)}, cognitive=1/3, social=1/3, numParticles=1000, numIterations=1000) {
 	let numParams = parNames.length;
@@ -36,7 +42,10 @@ function PSO(parNames, parMins, parMaxes, filter, costFun, inertiaFun=function(i
 		positions[j] = new Array(numParams);
 		velocities[j] = new Array(numParams).fill(0);
 		for (let k = 0; k < numParams; k++) {
-			positions[j][k] = sample(parMins[k],parMaxes[k]);
+			let mi = parMins[k];
+			let ma = parMaxes[k]
+			positions[j][k] = randomPosition(mi,ma);
+			velosicites[j][k] = randomVelocity(mi,ma);
 		}
 		if (!filter(positions[j])) {
 			j--;
@@ -112,7 +121,7 @@ function PSO2D(names, mins, maxes, filterFun, costFun, inertia, cognitive, socia
 			for (let j = 0; j < number; j++) {
 				scope.local_bests[j] = new Array(2).fill(0);
 				for (let k = 0; k < 2; k++) {
-					pa[j][k] = sample(scope.mins[k],scope.maxes[k]);
+					pa[j][k] = randomPosition(scope.mins[k],scope.maxes[k]);
 				}
 				if (scope.filterFun && !scope.filterFun(pa[j])) {
 					j--;
@@ -128,15 +137,28 @@ function PSO2D(names, mins, maxes, filterFun, costFun, inertia, cognitive, socia
 				let pn = new Float32Array(2);
 				let vn = new Float32Array(2);
 				while (true) {
+					let allZero = true;
 					for (let k = 0; k < 2; k++) {
 						let r1 = Math.random();
 						let r2 = Math.random();
 						vn[k] = scope.inertia*vo[k] 
 								+ r1*scope.cognitive*(scope.local_bests[j][k]-po[k]) 
 								+ r2*scope.social*(scope.global_best[k]-po[k]);
+						if (Math.abs(vn[k]) > 0.001) allZero = false;
 						pn[k] = po[k] + vn[k];
 						//Clamp position:
 						pn[k] = Math.min(scope.maxes[k],Math.max(scope.mins[k],pn[k]));
+					}
+					//Prevent idle particles:
+					if (allZero) {
+						//console.log("Respawning particle.");
+						scope.local_best_values[j] = Infinity;
+						for (let k = 0; k < 2; k++) {
+							let mi = scope.mins[k];
+							let ma = scope.maxes[k];
+							pn[k] = randomPosition(mi,ma);
+							vn[k] = randomVelocity(mi,ma);
+						}
 					}
 					if (!scope.filterFun || scope.filterFun(pn)) break;
 				}
