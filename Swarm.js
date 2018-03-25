@@ -23,7 +23,7 @@ uniform vec3 passiveColor;
 varying float isActive;
 void main(void) {
 	if (length(gl_PointCoord.xy-vec2(0.5)) > 0.5) discard;
-	gl_FragColor = vec4(isActive>0.5 ? activeColor : passiveColor, 1);
+	gl_FragColor = vec4(isActive*activeColor +(1.0-isActive)*passiveColor, 1);
 }
 `
 	});

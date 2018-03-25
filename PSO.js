@@ -96,7 +96,7 @@ function PSO(parNames, parMins, parMaxes, filter, costFun, inertiaFun=function(i
 //Object-oriented 2D PSO for visualization, 
 //based on Swarm class. Depends on Swarm.js and 
 //Vector2D_operations.js
-function PSO2D(names, mins, maxes, filterFun, costFun, inertia, cognitive, social, number=1000, pointRadius=1, verbose=false) {
+function PSO2D(names, mins, maxes, filterFun, costFun, inertia, cognitive, social, number=1000, pointRadius=1, verbose=false, epsilon=0.0001) {
 	this.names = names;
 	this.mins = mins;
 	this.maxes = maxes;
@@ -106,6 +106,7 @@ function PSO2D(names, mins, maxes, filterFun, costFun, inertia, cognitive, socia
 	this.cognitive = cognitive;
 	this.social = social;
 	this.verbose = verbose;
+	this.epsilon = epsilon; //zero threshold for respawning
 	let scope = this;
 	Swarm.call(this, {
 		number,
@@ -144,14 +145,16 @@ function PSO2D(names, mins, maxes, filterFun, costFun, inertia, cognitive, socia
 						vn[k] = scope.inertia*vo[k] 
 								+ r1*scope.cognitive*(scope.local_bests[j][k]-po[k]) 
 								+ r2*scope.social*(scope.global_best[k]-po[k]);
-						if (Math.abs(vn[k]) > 0.001) allZero = false;
+						if (Math.abs(vn[k]) > scope.epsilon) 
+							allZero = false;
 						pn[k] = po[k] + vn[k];
 						//Clamp position:
 						pn[k] = Math.min(scope.maxes[k],Math.max(scope.mins[k],pn[k]));
+						if (Math.abs(scope.global_best[k]-pn[k]) > scope.epsilon) allZero = false;
 					}
 					//Prevent idle particles:
 					if (allZero) {
-						//console.log("Respawning particle.");
+						console.log("Respawning particle.");
 						scope.local_best_values[j] = Infinity;
 						for (let k = 0; k < 2; k++) {
 							let mi = scope.mins[k];
