@@ -154,7 +154,7 @@ function PSO2D(names, mins, maxes, filterFun, costFun, inertia, cognitive, socia
 					}
 					//Prevent idle particles:
 					if (allZero) {
-						console.log("Respawning particle.");
+						//console.log("Respawning particle.");
 						scope.local_best_values[j] = Infinity;
 						for (let k = 0; k < 2; k++) {
 							let mi = scope.mins[k];
