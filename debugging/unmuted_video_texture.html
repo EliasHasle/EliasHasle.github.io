@@ -1,0 +1,97 @@
+<!doctype html>
+
+<html>
+<head>
+<!--<script>if (window.location.protocol !== "https") window.location.protocol = "https";</script>--> <!--DEBUG-->
+<script src="https://threejs.org/build/three.js"></script>
+<script src="https://threejs.org/examples/js/libs/dat.gui.min.js"></script>
+
+</head>
+<body>
+<script>
+var videoTexture, videoSettings, videoStream, audioTrack;
+
+let gui = new dat.GUI();
+
+navigator.mediaDevices.getUserMedia({video: true, audio: true}).then(function(stream) {
+	videoSettings = stream.getVideoTracks()[0].getSettings();
+	audioTrack = stream.getAudioTracks()[0];
+	//Making a separate pure video stream is a workaround
+	//let videoStream = new MediaStream(stream.getVideoTracks());
+	let video = document.createElement("video");
+	Object.assign(video, {
+		srcObject: stream,//videoStream,
+		autoplay: true,
+		//Setting muted here breaks everything
+		//muted: true,
+	});
+	//Toggling muted later works as expected, if muted was initially false:
+	gui.add(video, "muted");
+	//document.body.appendChild(video);
+	videoTexture = new THREE.VideoTexture(video);
+	videoTexture.minFilter = THREE.LinearFilter;
+	init();
+	}
+	).catch(function(error){console.error(error);});
+
+var renderer, scene, camera;
+
+function init() {
+	let w = videoSettings.width;
+	let h = videoSettings.height;
+
+	//Renderer setup
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(w, h);
+	container.appendChild(renderer.domElement);
+	
+	//Scene setup:
+	scene = new THREE.Scene();
+	
+	let display = new THREE.Mesh(
+		new THREE.PlaneBufferGeometry(2, 2),
+		new THREE.MeshBasicMaterial({map: videoTexture})
+	);
+	scene.add(display);
+	
+	//Camera setup:
+	camera = new THREE.OrthographicCamera(-1,1,1,-1);
+	camera.position.z = 1;
+	//scene.add(camera);
+
+	videoStream = renderer.domElement.captureStream(videoSettings.frameRate);
+	videoStream.addTrack(audioTrack);
+	
+	let data, mediaRecorder;
+	let recording = false;
+	gui.add({record: function() {
+		if (!recording) {
+			data = [];
+			mediaRecorder = new MediaRecorder(videoStream);
+			mediaRecorder.ondataavailable = function(e) {data.push(e.data);};
+			mediaRecorder.onstop = function(e) {
+				let blob = new Blob(data, {type: "video/webm"});
+				let a = document.createElement("a");
+				a.download = "Video_recording.webm";
+				a.href = window.URL.createObjectURL(blob);
+				a.click();
+			}
+			mediaRecorder.start();
+			recording = true;
+		} else {
+			mediaRecorder.stop();
+			recording = false;
+		}	
+	}},"record");
+	
+	
+	setInterval(function() {
+			renderer.render(scene, camera);
+		}, 1000./videoSettings.frameRate);
+}
+</script>
+</body>
+</html>
