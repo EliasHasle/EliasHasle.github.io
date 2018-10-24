@@ -59,7 +59,17 @@ var renderer, simulatedScene, simulationCubeCamera, idealSimulatorScene, camera;
 	cubeShader.uniforms.tCube.value = simulationCubeCamera.renderTarget.texture;
 	let idealScreenMat = new THREE.ShaderMaterial({
 		uniforms: cubeShader.uniforms,
-		vertexShader: cubeShader.vertexShader,
+		vertexShader: 
+		`
+		varying vec3 vWorldPosition;
+
+		void main() {
+			vWorldPosition = normalize( ( modelMatrix * vec4( position, 1.0 ) ).xyz );
+			
+			gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+		}
+		`,	
+		//cubeShader.vertexShader,
 		fragmentShader: cubeShader.fragmentShader,
 		//depthWrite: false,
 		side: THREE.BackSide});
@@ -72,7 +82,6 @@ var renderer, simulatedScene, simulationCubeCamera, idealSimulatorScene, camera;
 	
 	//Observer camera setup:
 	camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.01, 15);
-	//camera.rotation.set(0.6, -4, 0);
 	camera.lookAt(new THREE.Vector3(5,-50,35));
 
 	renderer.render(idealSimulatorScene, camera);

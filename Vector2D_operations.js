@@ -13,6 +13,9 @@ function add([ax,ay], [bx,by]) {
 function sub(a, b) {
 	return add(a,negate(b));
 }
+function lerp(a,b,mu) {
+	return add(scale(a,(1-mu)),scale(b,mu));
+}
 function delta(a, b) {
 	return sub(b,a);
 }
