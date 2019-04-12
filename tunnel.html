@@ -24,13 +24,13 @@ See: https://en.wikipedia.org/wiki/Frenet%E2%80%93Serret_formulas
 //For keyboard control
 var arrow_keys = [false, false, false, false];
 document.onkeydown = function(e) {
-	if (37 <= e.keyCode <=40) {
+	if (37 <= e.keyCode && e.keyCode <=40) {
 		arrow_keys[e.keyCode-37] = true;
 		//console.log("key %d down", e.keyCode);
 	}
 }
 document.onkeyup = function(e) {
-	if (37 <= e.keyCode <=40) {
+	if (37 <= e.keyCode && e.keyCode <=40) {
 		arrow_keys[e.keyCode-37] = false;
 		//console.log("key %d up", e.keyCode);
 	}
