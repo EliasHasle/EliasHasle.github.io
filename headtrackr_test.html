@@ -69,13 +69,13 @@ var ceilLight;
 	ceilLight = new THREE.Group();
 	ceilLight.position.y = H;
 	
-	let socket = new THREE.Mesh(
+	let lightSocket = new THREE.Mesh(
 		new THREE.ConeBufferGeometry(100, 170, 32),
 		new THREE.MeshPhongMaterial({color: 0xffffff})
 	);
-	socket.position.y = -85;
-	socket.rotation.x = Math.PI;
-	ceilLight.add(socket);
+	lightSocket.position.y = -85;
+	lightSocket.rotation.x = Math.PI;
+	ceilLight.add(lightSocket);
 	
 	let bulb = new THREE.Mesh(
 		new THREE.SphereBufferGeometry(80, 32, 16),
