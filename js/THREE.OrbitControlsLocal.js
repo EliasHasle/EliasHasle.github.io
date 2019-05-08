@@ -1,10 +1,7 @@
 THREE.OrbitControlsLocal = function ( realObject, domElement ) {
 	this.realObject = realObject;
-	
+	//Camera and Object3D have different forward direction:
 	let placeholderObject = realObject.isCamera ? new THREE.PerspectiveCamera() : new THREE.Object3D;
-	placeholderObject.position.copy( realObject.position );
-	placeholderObject.quaternion.copy( realObject.quaternion);
-	placeholderObject.scale.copy( realObject.scale );
 	this.placeholderObject = placeholderObject;
 	
 	THREE.OrbitControls.call( this, placeholderObject, domElement );
@@ -13,7 +10,12 @@ THREE.OrbitControlsLocal = function ( realObject, domElement ) {
 	this.globalUpdate = globalUpdate;
 	this.update = function() {
 
+		//This responds to changes made to realObject from outside the controls:
+		placeholderObject.position.copy( realObject.position );
+		placeholderObject.quaternion.copy( realObject.quaternion);
+		placeholderObject.scale.copy( realObject.scale );
 		placeholderObject.up.copy( realObject.up );
+		
 		var retval = globalUpdate();
 		realObject.position.copy( placeholderObject.position );
 		realObject.quaternion.copy( placeholderObject.quaternion);
