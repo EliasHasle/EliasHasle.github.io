@@ -1,9 +1,14 @@
-/*This is a simple Pseudo-Random Number Generator inspired by an example xorshift32 implementation found on Wikipedia.
+//See PRNG.js for new version.
+
+/*This is a simple Pseudo-Random Number Generator 
+inspired by an example xorshift32 implementation found on Wikipedia.
 
 No rights are claimed (or infringed, I think).
 
 Todo:
-- Switch to 64 bit internal state, so that an extracted 32 bit component is not 2^32 periodic. This will require some tricks, as bitwise operations in javascript work on 32 bits only, natively.
+- Switch to 64 bit internal state, so that an extracted 32 bit
+component is not 2^32 periodic. This will require some tricks,
+as bitwise operations in javascript work on 32 bits only, natively.
 */
 
 var Random = function() {
@@ -12,14 +17,14 @@ var Random = function() {
 
 	var seed = function(s, hi) {
 		if (s === 0 || isNaN(s)) {
-			console.log("Invalid seed (" + s + "). Using time instead.");
+			console.log("Invalid seed " + s + ". Using time instead.");
 			s = Date.now();
 		}
 		state = s;
 		//experimental:
 		if (hi !== undefined) {
 			if (isNaN(hi)) {
-				console.log("Invalid hi seed (" + hi + "). Using value from time instead.");
+				console.log("Invalid hi seed " + hi + ". Using value derived from time instead.");
 				hi = 153453643^Date.now();
 			}
 			stateHI = hi;
@@ -81,7 +86,7 @@ var Random = function() {
 		},
 		//"coin flip" boolean
 		rCoin: function() {
-			return (rInt32()&1) === 1;
+			return ((rInt32()>>6)&1) === 1;
 		}
 	};
 }();

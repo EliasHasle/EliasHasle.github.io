@@ -5,7 +5,7 @@
 	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
 	<script src="three.js-master/examples/js/libs/dat.gui.min.js"></script>
 	
-	<script src="Random.js"></script>
+	<script src="PRNG.js"></script>
 </head>
 
 <body>
@@ -68,23 +68,25 @@ function MassesOnSprings(N, damping="Linear", C=0.5) {
 	this.masses = new Masses(geom);
 	this.springs = new Springs(geom);
 	this.add(this.masses, this.springs);
+	
+	this.random = new PRNG();
 }
 MassesOnSprings.prototype = Object.create(THREE.Group.prototype);
 Object.assign(MassesOnSprings.prototype, {
 	constructor: MassesOnSprings,
 	initRandom: function(seed, pFixed=0.25, pConnect=0.1) {
-		Random.seed(seed);
+		this.random.seed(seed);
 		
 		//masses
 		let p0 = this.p0;
 		let m = this.masses.geometry.getAttribute("mass");
 		let ma = m.array;
 		for (let i=0; i<this.N; i++) {
-			p0[3*i] = Random.rand()*100-50;
-			p0[3*i+1] = Random.rand()*100-50;
-			p0[3*i+2] = Random.rand()*100-50;
-			if (Random.rand()<pFixed) ma[i] = 0;
-			else ma[i] = Random.rand()*8;
+			p0[3*i] = this.random.rand()*100-50;
+			p0[3*i+1] = this.random.rand()*100-50;
+			p0[3*i+2] = this.random.rand()*100-50;
+			if (this.random.rand()<pFixed) ma[i] = 0;
+			else ma[i] = this.random.rand()*8;
 		}
 		m.needsUpdate = true;
 		
@@ -102,12 +104,12 @@ Object.assign(MassesOnSprings.prototype, {
 		for (let i=0; i<this.N-1; i++) {
 			let pi = new THREE.Vector3().fromArray(p0, 3*i);
 			for (let j=i+1; j<this.N; j++) {
-				if (Random.rand()<pConnect) {
+				if (this.random.rand()<pConnect) {
 					indices.push(i);
 					indices.push(j);
 					L.push(new THREE.Vector3().fromArray(this.p0, 3*j).sub(pi).length());
-					k.push(Random.rand()*1000*L[c]);
-					B.push(Random.rand()*25000);
+					k.push(this.random.rand()*1000*L[c]);
+					B.push(this.random.rand()*25000);
 					c++;
 				}
 			}
@@ -118,7 +120,9 @@ Object.assign(MassesOnSprings.prototype, {
 	restart: function(newIndex=false) {
 		let pos = this.masses.geometry.getAttribute("position");
 		let pa = pos.array;
-		for (let i=0; i < 3*this.N; i++) pa[i] = this.p0[i];
+		for (let i=0; i < 3*this.N; i++) {
+			pa[i] = this.p0[i];
+		}
 		pos.needsUpdate = true;
 		
 		let vel = this.masses.geometry.getAttribute("velocity");
@@ -131,7 +135,9 @@ Object.assign(MassesOnSprings.prototype, {
 		} else {
 			let index = this.springs.geometry.getIndex();
 			let ia = index.array;
-			for (let i=0; i<ia.length; i++) ia[i] = this.springs.indices[i];
+			for (let i=0; i<ia.length; i++) {
+				ia[i] = this.springs.indices[i];
+			}
 			index.needsUpdate = true;
 		}
 	},
@@ -254,13 +260,13 @@ Object.assign(Springs.prototype, {
 
 	//Scene setup:
 	scene = new THREE.Scene();
-	scene.add(new THREE.AxisHelper(50));
+	scene.add(new THREE.AxesHelper(50));
 	//scene.add(new THREE.GridHelper(50, 10));
 	scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 	
 	//Mass-spring system:
 	mos = new MassesOnSprings(100);
-	mos.initRandom();
+	mos.initRandom(gc.seed);
 	scene.add(mos);
 
 	//Camera setup
