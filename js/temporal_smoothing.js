@@ -66,7 +66,9 @@ Object.assign(Smoother.prototype, {
 		this.mat.uniforms.remember.value = this.remember;
 		this.mat.uniforms.refresh.value = this.refresh;
 
-		this.renderer.render(this.scene,this.camera,this.targets[this.flipflop]);
+		this.renderer.setRenderTarget(this.targets[this.flipflop]);
+		this.renderer.render(this.scene,this.camera);
+		this.renderer.setRenderTarget(null);
 		this.renderer.render(this.scene,this.camera); //DEBUG
 		this.mat.uniforms.state.value = this.targets[this.flipflop].texture;
 		this.flipflop = 1-this.flipflop;
