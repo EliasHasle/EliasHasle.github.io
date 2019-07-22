@@ -98,11 +98,12 @@ function addCell(xc,yc,zc) {
 	renderer.setClearColor(0xcccccc);
 	container.appendChild(renderer.domElement);
 
-	camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 1, 10000);
+	camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.01, 100);
 	camera.position.set(2,2,2);
 
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.target.set(0,0,0);
+	controls.maxDistance = 50;
 	controls.update();
 	
 	scene = new THREE.Scene();
