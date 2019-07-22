@@ -1,0 +1,132 @@
+<html>
+<head>
+<title>Face-centered cubic</title>
+
+<script src="three.js-master/build/three.js"></script>
+<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+<script>
+//Fix by removing "Buffer" from "BufferGeometry".
+
+"use strict";
+
+var container, renderer, scene, camera, controls;
+
+//Parameters:
+var s = 1; //unit cell side length
+var pr = 0.8; //proportion of maximum radius
+var r = pr*s*Math.sqrt(2)/4; //atom radius
+
+function Cell() {
+	THREE.Group.call(this);
+	
+	var hemGeom = Cell.hemGeom;
+	
+	var qrGeom = Cell.qrGeom;
+	
+	var mat = Cell.mat;
+	
+	var target = new THREE.Vector3();
+	var axes = ['x','y','z'];
+	for (let i = 0; i < 6; i++) {
+		let hemisphere = new THREE.Mesh(hemGeom, mat);
+		target[axes[i%3]] = (i%2-0.5)*2;
+		hemisphere.lookAt(target);
+		target[axes[i%3]] = 0;
+		this.add(hemisphere);
+	}
+	
+	for (var i=0, rotX=true; i<2; i++,rotX=false) {
+		for (var j=0; j<4; j++) {
+			let qsphere = new THREE.Mesh(qrGeom, mat);
+			if (rotX) {
+				qsphere.rotation.x = Math.PI;
+			}
+			qsphere.rotation.y = j*Math.PI/2;
+			this.add(qsphere);
+		}
+	}
+	
+	this.add(new THREE.BoxHelper(this));
+}
+Cell.prototype = Object.create(THREE.Group.prototype);
+Cell.prototype.constructor = Cell;
+
+Cell.hemGeom = new THREE.SphereBufferGeometry(r, 8,8, 0, Math.PI, 0, Math.PI);
+Cell.hemGeom.translate(0,0,-s/2);
+
+Cell.qrGeom = new THREE.SphereBufferGeometry(r, 4,4, 0, Math.PI/2, 0, Math.PI/2);
+Cell.qrGeom.translate(s/2,-s/2,-s/2);
+	
+Cell.mat = new THREE.MeshPhongMaterial( {color: 0x8888ff} );
+
+init();
+
+function addCell(xc,yc,zc) {
+	var cell = new Cell();
+	cell.position.set(xc,yc,zc);
+	scene.add(cell);
+}
+
+function init() {	
+	document.body.style = "overflow: hidden;";
+	container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer( {antialias: true} );
+	renderer.setPixelRatio(window.devicePixelRatio);
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0xcccccc);
+	container.appendChild(renderer.domElement);
+
+	camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 1, 10000);
+	camera.position.set(2,2,2);
+
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	controls.target.set(0,0,0);
+	controls.update();
+	
+	scene = new THREE.Scene();
+	scene.add(camera);
+	
+	scene.add(new THREE.AxesHelper(6000));
+	var light = new THREE.PointLight(0xffffff, 0.5);
+	light.position.set(10,10,10);
+	scene.add(light);
+	light = light.clone();
+	light.position.set(-10,-10,-10);
+	scene.add(light);
+
+	for (var i=-1; i<2; i++) {
+		for (var j=-1; j<2; j++) {
+			for (var k=-1; k<2; k++) {
+				addCell(i*s,j*s,k*s);
+			}
+		}
+	}
+
+	window.addEventListener('resize', onWindowResize, false);
+	
+	animate();
+}
+
+function animate() {
+	requestAnimationFrame(animate);
+
+	render();
+}
+
+function render() {
+	renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+</body>
+</html>
