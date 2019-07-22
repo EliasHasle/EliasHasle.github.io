@@ -41,7 +41,7 @@ var container;
 	for (let i = 0; i < 2; i++) {
 		for (let j = 0; j < 2; j++) {
 			for (let k = 0; k < 2; k++) {
-				let ah = new THREE.AxisHelper(1000000);
+				let ah = new THREE.AxesHelper(1000000);
 				ah.position.set(-(i-0.5), -(j-0.5), -(k-0.5));
 				ah.scale.set((i-0.5)*2,(j-0.5)*2,(k-0.5)*2);
 				container.add(ah);
@@ -55,7 +55,7 @@ var container;
 	container.scale.set(100,100,100);
 	scene.add(container);
 	
-	/*let ah = new THREE.AxisHelper(1000);
+	/*let ah = new THREE.AxesHelper(1000);
 	scene.add(ah);*/
 	
 	//Camera setup
