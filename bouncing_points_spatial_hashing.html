@@ -1,0 +1,380 @@
+<html>
+<head>
+	<title>Bouncing points, spatial hashing</title>
+	<script src="three.js-master/build/three.js"></script>
+	<script src="three.js-master/examples/js/libs/stats.min.js"></script>
+	<script src="three.js-master/examples/js/libs/dat.gui.min.js"></script>
+	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+	<script src="js/SpherePoints.js"></script>
+	
+</head>
+<body>
+<script>
+/*
+Most notes are in the other files (Bouncing_balls and Bouncing_balls2).
+
+This is an implementation of equal-sized bouncing balls using gl_points instead of spheregeometries. The collision detection is still inexact, but now improves greatly upon O(n^2).
+
+I shall NOT try to resolve conflicting intersections simultaneously (only in sequence). That will, although it conserves momentum, lead to undue changes in kinetic energy.
+
+Todo:
+- Find ways to offload computations to GPU (hash table etc).
+*/
+	
+"use strict";
+
+var clock, renderer, scene, camera, controls, stats;
+var particles, velocity;
+
+var minTests = Infinity; //TEST
+var maxTests = 0; //TEST
+var simulationTime = 0;
+var realTime = 0;
+
+function Particles(maxN=10000, r=1, box=null, gui=undefined, mode="random") {
+	SpherePoints.call(this, maxN, r);
+	//SpherePoints.call(this, maxN, r);
+	
+	this.box = box;
+	this.mode = mode;
+		
+	this.N = Math.max(1, Math.floor(0.25*maxN));
+	this.geometry.setDrawRange(0,this.N);
+	this.velocity = new Float32Array(3*maxN).fill(0);
+	
+	let scope = this;
+	gui.add(this, "r", 0.1, 10).onChange(function(value) {
+		scope.material.size = 2*Math.sqrt(2)*value;
+		scope.reset();
+	});
+	gui.add(this, "N", 1, maxN).onChange(function(value) {
+		scope.geometry.setDrawRange(0,value);
+	});
+
+	this.reset();
+};
+Particles.prototype = Object.create(THREE.Points.prototype);
+Object.assign(Particles.prototype, {
+	constructor: Particles,
+	reset: function() {
+		let pos = this.geometry.getAttribute("position");
+		let pa = pos.array;
+		let va = this.velocity;
+		let S = this.box.scale.x;
+		let r = this.r;
+
+		if (this.mode==="random") {
+			let q = 1.0; //Proportion of the box that the p, Sarticles are distributed in before start
+			let vr = 10; //scale of initial velocities (per axis), relative to particle radius
+			for (let i=0; i<3*this.maxN; i+=3) {
+				//Random position within allowed part of box. No guarantee against intersections/compression here yet.
+				pa[i] = Math.random()*(S-2*r)-(S/2-r);
+				pa[i+1] = Math.random()*(S-2*r)-(S/2-r);
+				pa[i+2] = Math.random()*q*(S-2*r)-(S/2-r);
+				//Small random velocity to remove initial compression quickly:
+				va[i] = vr*(Math.random()*(2*r)-r);
+				va[i+1] = vr*(Math.random()*(2*r)-r);
+				va[i+2] = vr*(Math.random()*(2*r)-r);
+			}
+		} else {
+			console.error("Unsupported particle reset mode: "+this.mode);
+			return;
+		}
+		pos.needsUpdate = true;
+	},
+	update: function(dt) {
+		//DEBUG
+		//console.log("Time before inter-particle collisions: %.3f", performance.now());
+			
+		let pos = this.geometry.getAttribute("position");
+		let pa = pos.array;
+		let va = this.velocity;
+		
+		//New collision check:
+
+		//TEST
+		var numTests = 0;
+		
+		//Spatial hashing:
+		let N = this.N;
+		let S = this.box.scale.x;
+		let r = this.r;
+		let s = 2*r;
+		let D = Math.ceil(S/s)+1;
+		
+		//DEBUG, OK:
+		//console.log("N=%.1f, S=%.1f, r=%.1f, s=%.1f, D=%.1f", N,S,r,s,D);
+		
+		var cells = {};
+		//var cells = new Array(2*N); //hash table
+
+		for (let i=0; i<3*N; i+=3) {
+			let pi = pa.subarray(i,i+3);
+			let vi = va.subarray(i,i+3);
+
+			//Adjusted bounding box coordinates:
+			let xp = pi[0] + r + 0.5*S;
+			let xm = pi[0] - r + 0.5*S;
+			let yp = pi[1] + r + 0.5*S;
+			let ym = pi[1] - r + 0.5*S;
+			let zp = pi[2] + r + 0.5*S;
+			let zm = pi[2] - r + 0.5*S;
+			
+			let ks = [Math.floor(xp/s), Math.floor(xm/s)];
+			let ls = [Math.floor(yp/s), Math.floor(ym/s)];
+			let ms = [Math.floor(zp/s), Math.floor(zm/s)];
+			
+			let encountered = new Set();
+			
+			for (let a=0; a<2; a++) {
+				for (let b=0; b<2; b++) {
+					for (let c=0; c<2; c++) {
+						
+						//Bounding box of particle intersects this cell
+						let key = ks[a]*D**2 + ls[b]*D + ms[c];
+						//create possibly non-unique hash:
+						//let key = (ks[a]*D**2 + ls[b]*D + ms[c])%(2*N);
+						
+						if (! (key in cells)) cells[key] = [];
+						//if (cells[key] === undefined) cells[key] = [];
+						
+						//Check for collisions with other particles that have already been found to intersect the same cell:
+						let cand = cells[key];
+			
+						for (let d=0; d<cand.length; d++) {
+							let j = cand[d];
+							
+							//...unless they have already been checked
+							if (encountered.has(j)) continue;
+							encountered.add(j);
+							
+							numTests++; //TEST
+
+							let pj = pa.subarray(j,j+3);
+							let vj = va.subarray(j,j+3);
+
+							//normal
+							let nij = new Float32Array([pj[0]-pi[0],
+														pj[1]-pi[1],
+														pj[2]-pi[2]]);
+							let le = nij[0]**2 + nij[1]**2 + nij[2]**2;
+							if (le > 4*r**2) continue; //no collision
+							
+							le = Math.sqrt(le);
+							
+							nij[0] /= le;
+							nij[1] /= le;
+							nij[2] /= le;
+
+							//Component of absolute velocity of pi against pj
+							let vin = vi[0]*nij[0] + vi[1]*nij[1] + vi[2]*nij[2];
+							//Component of absolute velocity of pj against pi
+							let vjn = vj[0]*nij[0] + vj[1]*nij[1] + vj[2]*nij[2];
+
+							if (vin < vjn) continue; //don't collide again on the way out of a collision
+
+							//Swap velocities along the normal vector:
+							let C = -vin+vjn;
+							vi[0] += C*nij[0];
+							vi[1] += C*nij[1];
+							vi[2] += C*nij[2];
+
+							vj[0] -= C*nij[0];
+							vj[1] -= C*nij[1];
+							vj[2] -= C*nij[2];
+						}					
+						
+						//Add particle to cell
+						cells[key].push(i);
+					}
+				}
+			}
+		}
+		
+		//DEBUG
+		//console.log(cells);
+		
+		//DEBUG/stats
+		if (numTests < minTests) {
+			minTests = numTests;
+			console.log("min collision tests: %d", numTests);
+		}
+		if (numTests > maxTests) {
+			maxTests = numTests;
+			console.log("max collision tests: %d", numTests);
+		}
+		
+		//DEBUG
+		//console.log("Time between inter-particle collisions and final motion calculation: %.3f", performance.now());
+
+		/*Take into account gravity and boundary collisions, and update velocity and position for all particles, conserving energy.*/
+		const g = 981; // default acceleration from gravity in cm/s^2
+
+		for (let i=0; i<3*N; i+=3) {
+			for (let c=0,x,v,border,overflow; c<3; c++) {
+				x = pa[i+c];
+				v = va[i+c];
+				//x or y direction (z is up):
+				/*Force all balls to stay in the box, and if they have left because of high v or long dt, force them back into the box (without accounting for interparticle collisions).*/
+				if (c==0 || c==1) {
+					x += v*dt;
+					if (Math.abs(x) > S/2-r) {
+						border = Math.sign(x)*(S/2-r);
+						overflow = x - border; //positive above, negative below
+						let turns = Math.floor(Math.abs(overflow/(S-2*r)));
+						let rest = overflow%(S-2*r);
+						if (turns%2 == 0) {
+							va[i+c] = -v;
+							pa[i+c] = border -rest;
+						} else {
+							pa[i+c] = -border +rest;
+						}
+						
+					}
+					else {
+						pa[i+c] = x;
+					}
+				}
+				//z direction (up):
+				else {
+					border = S/2-r;
+					var dt_rest = dt;
+					while (dt_rest>0) {
+						//find time for first collision within dt_rest, otherwise use dt_rest.
+						let first = dt_rest;
+						let cfn = 0; //ceiling-floor-none (none=0 is no collision)
+						//find smallest positive time of collision before (or at) dt_rest
+						function update_record(kand, tb) {
+							if (0 < kand && kand <= first) {
+								first = kand;
+								cfn = tb;
+							}
+						}
+						function update(kjerne, tb) {
+							var srt = Math.sqrt(kjerne);
+							//real solution
+							if (kjerne > 0) {
+								update_record((v + srt)/g, tb);
+								update_record((v - srt)/g, tb);
+							}
+						}
+						update(v*v - 2*g*(border-x), 1); //possible ceiling collisions
+						update(v*v - 2*g*(-border-x), -1); //possible floor collisions
+						if (cfn == 0) {
+							x += v*dt_rest - 0.5*g*dt_rest**2;
+							v -= g*dt_rest;
+							dt_rest = 0;
+						} else {
+							x = border*cfn;
+							v = -(v-g*first); //bounce
+							dt_rest -= first;
+						}
+					}
+					pa[i+c] = x;
+					va[i+c] = v;
+				}
+			}
+		}
+		
+		//DEBUG
+		//console.log("Time after final motion calculation: %.3f", performance.now());
+		//DEBUG
+		/*let E = 0;
+		let vec = new THREE.Vector3();
+		for (i=0; i<3*N; i+=3) {
+			E += 0.5*(vec.fromArray(va,i).length())**2;
+			E += g*(pa[i+2]+0.5*S);
+		}
+		console.log(E);*/
+		
+		pos.needsUpdate = true;
+	}
+});
+
+function animate() {
+	var dt = clock.getDelta();
+	realTime += dt;
+	dt = 1/60; //try fixed dt
+	simulationTime += dt;
+	stats.update();
+
+	particles.update(dt);
+
+	renderer.render(scene, camera);
+	
+	requestAnimationFrame(animate);
+}
+
+(function main() {
+	//Just to make it display
+	document.body.style = "overflow: hidden;"
+	clock = new THREE.Clock();
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	container.appendChild(renderer.domElement);
+	
+	//stats
+	stats = new Stats();
+	document.body.appendChild(stats.domElement);
+	
+	let params = {S: 100};
+	let S = params.S;
+
+	camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 1, 10000);
+	window.addEventListener('resize', function() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}, false);
+	camera.up.set(0,0,1); //z axis up
+	camera.position.set(-0.9*S, -1.5*S, 0.2*S); //Position according to box size
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	
+	//scene setup:
+	scene = new THREE.Scene();
+	/*scene.add(function() {
+		var gh = new THREE.GridHelper(S, 8);
+		gh.rotation.x = -Math.PI/2;
+		return gh;
+	}());*/
+	scene.add(new THREE.AmbientLight(0xffffff, 1));
+	scene.add(function() {
+		var light = new THREE.PointLight(0xffffff, 1);
+		light.position.set(0,0,S);
+		return light;
+	}());
+
+	var gui = new dat.GUI();
+	
+	//Add box
+	var box = new THREE.Mesh(
+		new THREE.BoxGeometry(1,1,1),
+		new THREE.MeshPhongMaterial({color: 0xdddddd/*0xcc9966*/, side: THREE.BackSide})
+	);
+	box.scale.set(S,S,S);
+	scene.add(box);
+
+	particles = new Particles(20000, 1, box, gui);
+	scene.add(particles);
+	
+	gui.add(params, "S", 100, 10000).onChange(function() {
+		let ov = S;
+		return function(value) {
+			box.scale.set(value,value,value);
+			camera.position.multiplyScalar(value/ov);
+			camera.near *= value/ov;
+			camera.far *= value/ov;
+			camera.updateProjectionMatrix();
+			particles.reset();
+			ov = value;
+		}
+	}());
+	
+	animate();
+})();
+</script>
+</body>
+</html>

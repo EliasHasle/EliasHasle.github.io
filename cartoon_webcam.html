@@ -1,0 +1,254 @@
+<!doctype html>
+
+<html>
+<head>
+<style>
+body,div {
+	background-color: black
+}
+</style>
+
+<script src="three.js-master/build/three.js"></script>
+<script src="dat.gui-master/build/dat.gui.js"></script>
+<script src="js/temporal_smoothing.js"></script>
+<!--<script type="x-shader/x-vertex">
+void main() {
+	
+}
+</script>-->
+<script id="cartoonShader" type="x-shader/x-fragment">
+//I can use the diagonally placed neighbors to refine the calculation of the gradient.
+//I would also like to do some smoothing (in time and maybe in space for some layers)
+
+
+#define PI 3.14159265358979
+uniform sampler2D map;
+uniform vec2 resolution;
+uniform float bias;
+uniform float mul;
+uniform float evening;
+
+vec3 getColor(in sampler2D source, in vec2 offset) {
+	float x = mod((2.*resolution.x-gl_FragCoord.x+offset.x),resolution.x);
+	float y = mod((resolution.y+gl_FragCoord.y+offset.y),resolution.y);
+	vec2 nuv = vec2(x,y) / resolution.xy;
+	vec3 color = texture2D(source, nuv).rgb;
+	return color;
+}
+//In: source, offset, filter. Out: Filtered vec3.
+vec3 applyFilter(in sampler2D so, in mat3 f) {
+	vec3 o = getColor(so, vec2(0,0)); //here
+							//not sure about these:
+	vec3 e = getColor(so, vec2(1,0)); //east
+	vec3 n = getColor(so, vec2(0,1)); //north
+	vec3 w = getColor(so, vec2(-1,0)); //west
+	vec3 s = getColor(so, vec2(0,-1)); //south
+	vec3 ne = getColor(so, vec2(1,1)); //north-east etc
+	vec3 nw = getColor(so, vec2(-1,1));
+	vec3 sw = getColor(so, vec2(-1,-1));
+	vec3 se = getColor(so, vec2(1,-1));
+	//I am almost sure about the order:
+	return f[0][0]*nw+f[0][1]*w+f[0][2]*sw+f[1][0]*n+f[1][1]*o+f[1][2]*s+f[2][0]*ne+f[2][1]*e+f[2][2]*se;
+}
+
+float edgeStrength(in sampler2D s) {
+	//mat3 sobel_x = mat3(-1.,-2.,-1.,0.,0.,0.,1.,2.,1.);
+	//mat3 sobel_y = mat3(-1.,0.,1.,-2.,0.,2.,-1.,0.,1.);
+	mat3 scharr_x = mat3(-3.,-10.,-3.,0.,0.,0.,3.,10.,3.);
+	mat3 scharr_y = mat3(-3.,0.,3.,-10.,0.,10.,-3.,0.,3.);
+	vec3 dfdx = applyFilter(s,scharr_x);
+	vec3 dfdy = applyFilter(s,scharr_y);
+	return length(vec3(length(vec2(dfdx.r,dfdy.r)), length(vec2(dfdx.g,dfdy.g)), length(vec2(dfdx.b,dfdy.b))));
+}
+
+//reduce color resolution:
+float rc(in float cIn) {
+	#define LEVELS 8.
+	float cOut = floor(cIn*LEVELS+0.5)/LEVELS;	
+	return cOut;
+}
+
+//increase contrast:
+float ic(in float component) {
+	return 0.5*(-cos(PI*component)+1.);
+}
+
+float sigmoid(in float x) {
+	float e = exp(mul*x+bias);
+	return e/(1.0+e);
+}
+
+void main() {
+	//vec2 uv = gl_FragCoord.xy / resolution.xy;
+	vec3 o = getColor(map, vec2(0,0)); //here
+
+	float gradn = edgeStrength(map);
+	float smooth_gradn = sigmoid(gradn);
+	
+	//brightness
+	float L = length(o);
+	
+	//maybe this just evens out (and turns up) the brightness:
+	vec3 oSat = 1.0*normalize(o);
+	
+	//Reduce number of colors before adjusting contrast:
+	vec3 oR = vec3(rc(ic(oSat.r)), rc(ic(oSat.g)), rc(ic(oSat.b)));
+	
+	//Increase contrast, and apply brightness of reduced resolution:
+	vec3 oC = rc(L)*vec3(ic(oR.r), ic(oR.g), ic(oR.b));
+	
+	//I modify the gradient multiplier by brightness
+	vec3 color = (1.0-(1.0-sigmoid(L))*smooth_gradn)*((1.0-evening)*oC+evening*oSat);
+	gl_FragColor = vec4(color,1.0);
+}
+
+</script>
+
+</head>
+<body>
+<script>
+var videoTexture, videoSettings, cartoonStream, audioTrack;
+var clock, renderer, scene, camera, cartoonScene, cartoonCamera, cartoonTarget, smoother, display;
+var data, mediaRecorder, fpsIn, fpsOut=300;
+
+navigator.mediaDevices.getUserMedia({video: true, audio: true}).then(function(stream) {
+	videoSettings = stream.getVideoTracks()[0].getSettings();
+	audioTrack = stream.getAudioTracks()[0];
+	let videoStream = new MediaStream(stream.getVideoTracks());
+	let video = document.createElement("video");
+	Object.assign(video, {
+		srcObject: videoStream,//stream,
+		//height: videoSettings.height,
+		//width: videoSettings.width,
+		autoplay: true,
+	});
+	//document.body.appendChild(video);
+	videoTexture = new THREE.VideoTexture(video);
+	videoTexture.minFilter = THREE.LinearFilter;
+	init();
+	}
+	).catch(function(error){console.error(error);});
+
+function init() {
+	let w = videoSettings.width;
+	let h = videoSettings.height;
+	let fpsIn = videoSettings.framerate;
+	
+	//Renderer setup
+	clock = new THREE.Clock(/*false*/); //false vil skru av autostart
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "text-align: center; width: 100vw"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(w, h);
+	container.appendChild(renderer.domElement);
+	
+	//Scene setup:
+	cartoonScene = new THREE.Scene();
+	var cartoonMat = new THREE.ShaderMaterial({
+		uniforms: {
+			map: {value:videoTexture},
+			resolution: {value:new THREE.Vector2(w,h)},
+			mul: new THREE.Uniform(3.2),
+			bias: new THREE.Uniform(-4.5),
+			evening: new THREE.Uniform(0.25),
+		},
+		vertexShader: THREE.ShaderLib.basic.vertexShader,
+		fragmentShader: document.getElementById("cartoonShader").textContent
+	});
+	
+	let gui = new dat.GUI();
+	gui.add(cartoonMat.uniforms.mul,"value",0,20).name("Edge sensitivity");
+	gui.add(cartoonMat.uniforms.bias,"value",-10,10).name("Edge bias");
+	gui.add(cartoonMat.uniforms.evening,"value",0,1).name("Color evening");
+	
+	var cartoonDisplay = new THREE.Mesh(
+		new THREE.PlaneBufferGeometry(w, h),
+		cartoonMat//new THREE.MeshBasicMaterial({map: videoTexture})
+	);
+	cartoonScene.add(cartoonDisplay);
+	
+	//Camera setup:
+	cartoonCamera = new THREE.OrthographicCamera(-0.5*w, 0.5*w, 0.5*h, -0.5*h, 1,10);
+	cartoonCamera.position.z = 5;
+	
+	cartoonTarget = new THREE.WebGLRenderTarget(w,h);
+	smoother = new Smoother(cartoonTarget, 0.65,0.35,renderer);
+	
+	gui.add(smoother,"remember",0,0.99);
+	gui.add(smoother,"refresh",0.01,1);
+	
+	scene = new THREE.Scene();
+	display = new THREE.Mesh(
+		new THREE.PlaneBufferGeometry(2,2),
+		new THREE.MeshBasicMaterial({map: smoother.getTex()})
+	);
+	scene.add(display);
+	camera = new THREE.OrthographicCamera();
+	camera.position.z = 2;
+	
+	//cartoonStream = renderer.domElement.captureStream(0);
+	cartoonStream = renderer.domElement.captureStream(fpsIn);
+	//cartoonStream.addTrack(audioTrack);
+	console.log(cartoonStream.getVideoTracks()[0].getSettings());
+	
+	let recording = false;
+	gui.add({record: function() {
+		if (!recording) {
+			data = [];
+			mediaRecorder = new MediaRecorder(cartoonStream);
+			let logOnce = true;
+			mediaRecorder.ondataavailable = function(e) {
+				if (logOnce) {
+					logOnce = false;
+					console.log(e);
+				}
+				data.push(e.data);
+			};
+			mediaRecorder.onstop = function(e) {
+				let blob = new Blob(data, {type: "video/webm"});
+				blob.name = "Cartoon_recording.webm";
+				blob.lastModifiedDate = new Date();
+				let a = document.createElement("a");
+				a.download = "Cartoon_recording.webm";
+				a.href = window.URL.createObjectURL(blob);
+				a.click();
+			}
+			mediaRecorder.start();
+			recording = true;
+		} else {
+			mediaRecorder.stop();
+			recording = false;
+		}	
+	}},"record");
+	
+	animate();
+	//setInterval(animate, 1000./fpsIn);
+}
+
+function animate() {
+	renderer.setRenderTarget(cartoonTarget);
+	renderer.render(cartoonScene, cartoonCamera);
+	renderer.setRenderTarget(null);
+	smoother.update();
+	//display.material.map = smoother.getTex();
+	renderer.render(scene, camera);
+	
+	if (mediaRecorder && mediaRecorder.state==='paused') {
+		console.log("Resuming.");
+		mediaRecorder.resume();
+	}
+	//cartoonStream.getVideoTracks()[0].requestFrame(); //Test
+	setTimeout(function() {
+		if (mediaRecorder && mediaRecorder.state!=='inactive') {
+			console.log("Requesting data and pausing...");
+			mediaRecorder.requestData();
+			mediaRecorder.pause();
+		}
+		setTimeout(animate, 1000./fpsIn); //Would use requestAnimationFrame for CGI
+	}, 1000./fpsOut);
+}
+</script>
+</body>
+</html>
