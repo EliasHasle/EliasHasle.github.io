@@ -2,10 +2,11 @@
 
 function PRNG(seed) {
 	this.state = new Uint32Array(2).fill(0);
-	if (isNaN(seed)) {
+	if (seed !== undefined && isNaN(seed)) {
 		console.log("Invalid seed " + seed + ". Using time instead.");
 		seed = undefined;
 	}
+	
 	if (seed === undefined) {
 		seed = Date.now();
 	}
