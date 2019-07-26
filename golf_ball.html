@@ -50,7 +50,7 @@ var golfBall;
 	//Since the geometry is not indexed, 
 	//merely assigning rgb rgb rgb ... will suffice!
 	
-	var golfBallGeometry = new THREE.IcosahedronBufferGeometry(1, 3);
+	var golfBallGeometry = new THREE.IcosahedronBufferGeometry(1, 2);//3);
 	var L = golfBallGeometry.attributes.position.array.length;
 	var F = L/9;
 	
@@ -191,7 +191,7 @@ vec3 perturbNormalArb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy ) {
 //#include <clipping_planes_pars_fragment>
 
 float sigmoid(float x) {
-	return 1./(1.-exp(x));
+	return 1./(1.+exp(x));
 }
 
 void main() {
@@ -214,11 +214,16 @@ void main() {
 	#include <normal_fragment_begin>
 	
 	float maC = max(max(vColor.r, vColor.g), vColor.b);
-	float bump = 1.0-sigmoid(18.0*dot(vColor,vColor));
-	bump = bump < 0.1 ? 0. : bump;
+	//Triangular dents:
+	//float bump = 1.-sigmoid(dot(vColor,vColor)-4.5);
+	//Small, circular dents:
+	float bump = 1.-sigmoid(28.*dot(vColor,vColor)-4.0);
+	
+	//Try adjusting the bumpScale too:
+	float bumpScale = 3.5;
 	
 	//Calculate derivative of bump height in screen space:
-	vec2 df_bump = vec2(dFdx(-bump), dFdy(-bump));
+	vec2 df_bump = bumpScale*vec2(dFdx(bump), dFdy(bump));
 	
 	normal = perturbNormalArb( -vViewPosition, normal, df_bump);
 		
