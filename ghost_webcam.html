@@ -55,7 +55,7 @@ function init() {
 	smoother = new Smoother(videoTexture, undefined, undefined, renderer);
 	//gui.add(smoother, "remember", 0.01, 1, 0.01);
 	//gui.add(smoother, "refresh", 0, 0.99, 0.01);
-	gui.add({smoothing:0.5},"smoothing",0.0,0.99,0.01).onChange(function(v) {
+	gui.add({smoothing:0.95},"smoothing",0.0,0.99,0.01).onChange(function(v) {
 		smoother.remember = v;
 		smoother.refresh = 1-v;
 	});
