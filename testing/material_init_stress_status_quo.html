@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head></head>
+
+<body>
+<!--<script src="three_with_p11_and_p13.js"></script>-->
+<script src="three.js"></script>
+<script>
+//In initMaterial GL dominates getProgramCode, so the difference is almost negligible
+const numUniqueMaterial = 0;//1000;
+
+//Major difference found when stress-testing individually 
+//created materials with shared shader strings.
+//This applies even without PRECOMPILE.
+const numSharedCode = 300000;//0;
+
+//Properly shared materials:
+//With PRECOMPILE: Much faster with patch.
+//Without PRECOMPILE: No big difference found.
+const numSharedMaterial = 0;//300000;
+
+const PRECOMPILE = false;//true;
+
+var renderer, scene, camera;
+
+renderer = new THREE.WebGLRenderer();
+//This made no big difference, but moved the ~90% in the 
+//profiler from getProgramInfoLog to the next GL call.
+//I assume this just means the 90% are on the WebGL side.
+//renderer.debug.checkShaderErrors = false;
+
+var container = document.createElement("div");
+Object.assign(container.style, {
+	position: "absolute",
+	top: 0,
+	left: 0,
+	width: "600px",
+	height: "600px"
+});
+container.appendChild(renderer.domElement);
+document.body.appendChild(container);
+
+scene = new THREE.Scene();
+
+//Add camera:
+camera = new THREE.PerspectiveCamera();
+camera.position.set(15, 15, 15);
+camera.lookAt(scene.position);
+scene.add(camera);
+
+let sharedGeometry = new THREE.SphereBufferGeometry();
+
+let baseVert = `
+precision highp float;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+attribute vec3 position;
+void main() {
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+}`;
+
+let baseFrag = `
+precision highp float;
+void main() {
+	gl_FragColor = vec4( 1.0, 0.0, 0.0, 1.0 );
+}`;
+
+let baseUnif = {
+	modelViewMatrix: new THREE.Uniform(new THREE.Matrix4()),
+	projectionMatrix: new THREE.Uniform(camera.projectionMatrix),//new THREE.Matrix4())
+};
+
+function mutation(length) {
+	let buffer = [""];
+	for (let i = 0; i < length; i++) {
+		buffer.push(Math.random() < 0.5 ? " " : "\t");
+	}
+	return buffer.join("");
+}
+
+function addMesh(vertexShader, fragmentShader) {
+	let uniqueMaterial = new THREE.RawShaderMaterial({
+		vertexShader,
+		fragmentShader,
+		uniforms: baseUnif
+	});
+	
+	let mesh = new THREE.Mesh(sharedGeometry, uniqueMaterial);
+	mesh.position.set((2*Math.random()-1)*5, (2*Math.random()-1)*5, (2*Math.random()-1)*5);
+	scene.add(mesh);
+}
+
+//First randomly mutated materials of same length
+for (let i = 0; i < numUniqueMaterial; i++) {
+	let mutatedVert = baseVert+mutation(20);
+	let mutatedFrag = baseFrag+mutation(20);
+	addMesh(mutatedVert, mutatedFrag);
+}
+
+//Then with unique instances made from same shader (same length)
+let sharedVert = baseVert+mutation(20);
+let sharedFrag = baseFrag+mutation(20);
+for (let i = 0; i < numSharedCode; i++) {
+	addMesh(sharedVert, sharedFrag);
+}
+
+//Then with properly shared material (same length)
+let sharedVert2 = baseVert+mutation(20);
+let sharedFrag2 = baseFrag+mutation(20);
+let sharedMaterial = new THREE.RawShaderMaterial({
+	vertexShader: sharedVert2,
+	fragmentShader: sharedFrag2,
+	uniforms: baseUnif
+});
+for (let i = 0; i < numSharedMaterial; i++) {
+	let mesh = new THREE.Mesh(sharedGeometry, sharedMaterial);
+	mesh.position.set((2*Math.random()-1)*5, (2*Math.random()-1)*5, (2*Math.random()-1)*5);
+	scene.add(mesh);
+}
+
+
+if (PRECOMPILE) {
+	renderer.compile(scene, camera);
+}
+
+//Finally, do a single render:
+renderer.render(scene, camera);
+</script>
+
+</body>
+</html>
