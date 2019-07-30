@@ -1,0 +1,45 @@
+article {
+	position: absolute;
+	display: block;
+	left: 10vw;
+	width: 60vw;
+	min-width: 25em;
+}
+
+h1 {
+	font-size: 26pt;
+}
+
+h2 {
+	font-size: 20pt;
+}
+
+p,dt,dd {
+	font-size: 16pt;
+}
+
+dt {
+	float: left;
+	clear: left;
+	text-align: right;
+	font-weight: bold;
+}
+
+dl.experiments dt, dl.experiments dd {
+	padding-top: 0.5em;
+	padding-bottom: 0.5em;
+}
+
+dl#mainexperiments dt {
+	width: 15em;
+}
+dl#mainexperiments dd {
+	margin-left: 16em;
+}
+
+dl#contact dt {
+	width: 8em;
+}
+dl#contact dd {
+	margin-left: 9em;
+}
