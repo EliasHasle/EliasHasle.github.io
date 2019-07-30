@@ -1,9 +1,39 @@
-article {
+body {
+	background: url("./images/bg.bmp") #3f3f3f;
+	margin: 0;
+	padding: 0;
+}
+
+div#maincontainer {
 	position: absolute;
+	background-color: black;
+	color: white;
+	margin: 0;
+	padding: 3px;
 	display: block;
 	left: 10vw;
 	width: 60vw;
 	min-width: 25em;
+}
+
+nav, article {
+	position: relative;
+}
+
+nav {
+	top: 0;
+	height: 3vh;
+}
+
+a:link {
+	color: #99ffff;
+}
+a:visited {
+	color: #aaeeee;
+}
+
+article {
+	top: 3vh;
 }
 
 h1 {
@@ -28,6 +58,13 @@ dt {
 dl.experiments dt, dl.experiments dd {
 	padding-top: 0.5em;
 	padding-bottom: 0.5em;
+}
+
+dl#swarmexperiments dt {
+	width: 17em;
+}
+dl#swarmexperiments dd {
+	margin-left: 18em;
 }
 
 dl#mainexperiments dt {
