@@ -1,6 +1,6 @@
 <html>
 <head>
-	<title>Golf ball</title>
+	<title>Christmas ball</title>
 </head>
 
 <body>
@@ -12,7 +12,7 @@
 //Globals
 var clock, renderer, scene, camera, controls;
 
-var golfBall;
+var christmasBall;
 
 (function main() {
 	//Renderer setup
@@ -50,8 +50,8 @@ var golfBall;
 	//Since the geometry is not indexed, 
 	//merely assigning rgb rgb rgb ... will suffice!
 	
-	var golfBallGeometry = new THREE.IcosahedronBufferGeometry(1, 2);//3);
-	var L = golfBallGeometry.attributes.position.array.length;
+	var christmasBallGeometry = new THREE.IcosahedronBufferGeometry(1, 2);//3);
+	var L = christmasBallGeometry.attributes.position.array.length;
 	var F = L/9;
 	
 	var ca = new Float32Array(L).fill(0);
@@ -61,12 +61,12 @@ var golfBall;
 		ca[9*f+6+2] = 1.0;
 	}
 
-	golfBallGeometry.addAttribute("color", new THREE.BufferAttribute(ca, 3));
+	christmasBallGeometry.addAttribute("color", new THREE.BufferAttribute(ca, 3));
 	
 	//The shaders are based on Phong, but with unimportant parts omitted.
 	//It would be interesting to apply an environment map, though.
 	var phong = THREE.ShaderLib.phong;
-	var golfBallMaterial = new THREE.ShaderMaterial({
+	var christmasBallMaterial = new THREE.ShaderMaterial({
 		uniforms: THREE.UniformsUtils.merge([phong.uniforms]),
 		vertexShader: 
 /* glsl */`
@@ -201,9 +201,22 @@ varying vec3 vPosition;
 
 void main() {
 
+	//vColor now actually holds BARYCENTRIC coordinates
+	
+	//Star-shaped dents:
+	float maC = max(vColor.x, max(vColor.y, vColor.z));
+	float miC = min(vColor.x, min(vColor.y, vColor.z));
+	float mid = 1.-maC-miC;
+	float radius = mid/(maC+miC+mid);
+	float bump = sigmoid(100.*(radius-1./6.));
+	float bumpScale = 1.0;
+
 	//#include <clipping_planes_fragment>
 
-	vec4 diffuseColor = vec4( diffuse, opacity );
+	vec4 color1 = vec4(1.0, 1.0, 0.5, 0.6);
+	vec4 color2 = vec4(1.0, 0., 0., 1.0);
+	float select = saturate(bump);
+	vec4 diffuseColor = vec4(diffuse, opacity)*(select*color1 + (1.-select)*color2);
 	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
 	vec3 totalEmissiveRadiance = emissive;
 
@@ -217,67 +230,12 @@ void main() {
 	//#include <alphatest_fragment>
 	#include <specularmap_fragment>
 	#include <normal_fragment_begin>
-	
-	//vColor now actually holds BARYCENTRIC coordinates
-	
-	//Triangular dents:
-	//float bump = 1.-sigmoid(dot(vColor,vColor)-4.5);
-	//float bumpScale = 4.0;
-	
-	//Small, circular dents:
-	float bump = 1.-sigmoid(28.*dot(vColor,vColor)-4.0);
-	float bumpScale = 3.5;
-	
-	//Was trying for large hexagonal dents, but got flat hexagonal shading:
-	/*float maC = max(vColor.x, max(vColor.y, vColor.z));
-	//nearCorner is sort of balanced, restricted to [-1,1]
-	float nearCorner = 2.*maC-vColor.x-vColor.y-vColor.z;
-	float bump = sigmoid(0.001*nearCorner);
-	float bumpScale = 32.0;*/
-	
-	//Experiment with multiplication to get 0 on corners and edges:
-	/*float eps = 0.1;
-	float bump = -pow(vColor.x*vColor.y*vColor.z + eps, 2./3.);
-	float bumpScale = 1.0;*/
-	//0 DERIVATIVE on corners and edges would be better
-
-	//Another variant
-	/*float invP = 1. - 9.*vColor.x*vColor.y*vColor.z;
-	float bump = sigmoid(-10.*(2.*invP - 1.));
-	float bumpScale = 1.;*/
-	
-	//Cool experiments with star-shaped dents:
-	/*float maC = max(vColor.x, max(vColor.y, vColor.z));
-	float miC = min(vColor.x, min(vColor.y, vColor.z));
-	float mid = 1.-maC-miC;
-	//float radius = mid - 1./3.;
-	//float bump = sigmoid(100.*(radius-0.01));
-	//float rsq = (mid-1./3.)*(mid-1./3.);
-	//float bump = sigmoid(100.*(rsq-1./9.));
-	//float radius = abs(mid-1./3.);
-	//float bump = sigmoid(100.*(radius-1./3.));
-	float radius = mid/(maC+miC+mid);
-	float bump = sigmoid(100.*(radius-1./6.));
-	float bumpScale = 1.0;*/
-	
-	//No effect:
-	/*float sc = 1.;
-	vec3 lamExp = vec3(exp(sc*vColor.x), exp(sc*vColor.y), exp(sc*vColor.z));
-	vec3 lamSoftM = lamExp/(lamExp.x+lamExp.y+lamExp.z);
-	float nearCorner = 2.*(1.-lamSoftM.x-lamSoftM.y-lamSoftM.z) - 1.;
-	float bump = nearCorner;//sigmoid(1.*nearCorner);
-	float bumpScale = 1.0;*/
-	
-	//Cool experiment
-	/*float bump = length(vColor/dFdx(vPosition));
-	float bumpScale = 1.0;*/
-	
-	//// NEEDED FOR ABOVE VARIANTS ////
+		
 	//Calculate derivative of bump height in screen space:
 	vec2 df_bump = bumpScale*vec2(dFdx(bump), dFdy(bump));
 	
 	normal = perturbNormalArb( -vViewPosition, normal, df_bump);
-		
+	
 	//#include <normal_fragment_maps>
 	//#include <emissivemap_fragment>
 
@@ -307,14 +265,16 @@ void main() {
 		lights: true,
 		transparent: true,
 		vertexColors: THREE.VertexColors,
+		side: THREE.DoubleSide,
 		extensions: {
 			derivatives: true
 		}
 	});
-	//console.log(golfBallMaterial.extensions);
+	
+	christmasBallMaterial.uniforms.shininess.value = 150;
 
-	golfBall = new THREE.Mesh(golfBallGeometry, golfBallMaterial);
-	scene.add(golfBall);
+	christmasBall = new THREE.Mesh(christmasBallGeometry, christmasBallMaterial);
+	scene.add(christmasBall);
 	
 	//Camera setup
 	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 0.01, 100);
