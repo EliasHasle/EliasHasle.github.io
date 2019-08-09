@@ -6,11 +6,7 @@
 <body>
 	<script src="three.js-master/build/three.js"></script>
 	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
-	<script type="module">
-		import {PolyhedronBufferGeometry} from "./js/Polyhedron_modification.js";
-		
-		THREE.PolyhedronBufferGeometry = PolyhedronBufferGeometry;
-	</script>
+	<script src="js/Polyhedron_modification.js"></script>
 <script>
 "use strict";
 
@@ -52,24 +48,152 @@ var golfBall;
 	scene.add(lamp2);
 	
 	//Golf ball:
-	//Since the geometry is not indexed, 
-	//merely assigning rgb rgb rgb ... will suffice!
+	//Since the geometry is now indexed (irregularly),
+	//I need to to the coloring search anyway.
 	
-	var golfBallGeometry = new THREE.IcosahedronBufferGeometry(1, 2);//3);
-	var L = golfBallGeometry.attributes.position.array.length;
-	var F = L/9;
+	//NOTE: OctahedronBufferGeometry fails with indexing 
+	//(even without vertex colors) at detail >= 2 !
+	//This must be an error caused (or triggered) by my indexing.
+	//Remember that 0 detail is the default true geometries.
+	//Both Octahedra and Dodecahedra can theoretically be three-colored on vertices.
+	var USE_INDEXED_GEOMETRY = true;
+	var USE_VERTEX_COLORS = true;
+	var golfBallGeometry = new THREE.OctahedronBufferGeometry(1, 0, USE_INDEXED_GEOMETRY);
+	//var golfBallGeometry = new THREE.DodecahedronBufferGeometry(1, 0, USE_INDEXED_GEOMETRY);
 	
-	var ca = new Float32Array(L).fill(0);
-	for (let f = 0; f < F; f++) {
-		ca[9*f] = 1.0;
-		ca[9*f+3+1] = 1.0;
-		ca[9*f+6+2] = 1.0;
+	if (USE_VERTEX_COLORS && golfBallGeometry.index) {
+		var L = golfBallGeometry.attributes.position.array.length;
+		var V = L/3;
+		var F = V/3;
+
+		var index = golfBallGeometry.index.array;
+		//console.log(index);
+		//return;
+		
+		var vertexToFaces = new Proxy({}, {
+			get(target, key) {
+				key = +key;
+				if (target[key] === undefined) {
+					console.log("Init vertexToFaces[%d]", key);
+					target[key] = [];
+				}
+				return target[key];
+			},
+		});
+		for (let f = 0; f < F; f++) {
+			for (let a = 3*f; a < 3*f+3; a++) {
+				let iv = index[a];
+				vertexToFaces[iv].push(f);
+			}
+		}
+		
+		var F_taken = new Proxy({}, {
+			get(target, key) {
+				key = +key;
+				if (target[key] === undefined) {
+					console.log("Init F_taken[%d]", key);
+					target[key] = {count:0};
+				}
+				return target[key];
+			},
+		});
+		
+		var colors = [];
+		var colorsAssigned = 0;
+		function assignColor(v,c) {
+			if (colors[v] !== undefined) {
+				console.log("Error: Color already assigned.");
+				return;
+			}
+			
+			colors[v] = c;
+			colorsAssigned++;
+			
+			for (let f of vertexToFaces[v]) {
+				switch (F_taken[f][c]) {
+					case undefined:
+						F_taken[f][c] = v;
+						F_taken[f].count++;
+						break;
+					case v:
+						console.log("revisited f,c,v=",f,c,v);
+						break;
+					default:
+						console.log("Error: Color already taken.");
+						break;
+				}
+			}
+		}
+		
+		//Minimal set of assumptions (determining only order of color set):
+		assignColor(index[0],0);
+		assignColor(index[1],1);
+		var frontier = [{/*f: 0, */v: index[2], c: 2}];
+		
+		while (frontier.length > 0) {
+		
+			for (let {v,c} of frontier) {				
+				//Apply change:
+				assignColor(v,c);
+			}
+			
+			let nFrontier = [];
+			while (frontier.length > 0) {
+				let {v,c} = frontier.pop();
+				
+				for (let nf of vertexToFaces[v]) {
+					let ftaken = F_taken[nf];
+					//console.log("F_taken[%d].count === %d", nf, ftaken.count);
+					
+					if (ftaken.count !== 2) {
+						continue;
+					}
+					
+					let nc = 0;
+					while (ftaken[nc] !== undefined) {
+						nc++;
+					}
+					if (nc === 3) {
+						console.log("nc === 3 (ERROR?)");
+						continue;
+					}
+						
+					let nvCands = [index[3*nf], index[3*nf+1], index[3*nf+2]];
+					for (let nv of nvCands) {
+						if (colors[nv] === undefined) {
+							let element = {/*f: nf,*/ v: nv, c: nc};
+							console.log(element);
+							nFrontier.push(element);
+							break;
+						}
+					}
+				}
+			}
+			
+			frontier = nFrontier;
+		}
+		
+		if (colorsAssigned !== V) {
+			console.warn("colorsAssigned !== V", colorsAssigned, V);
+			console.log(F_taken);
+		}
+		
+		var ca = new Float32Array(L).fill(0);
+		for (let f = 0; f < F; f++) {
+			for (let c = 0; c < 3; c++) {
+				ca[3*index[3*f+c]+colors[index[3*f+c]]] = 1.0;
+			}
+		}
+
+		golfBallGeometry.addAttribute("color", new THREE.BufferAttribute(ca, 3));
 	}
-
-	golfBallGeometry.addAttribute("color", new THREE.BufferAttribute(ca, 3));
 	
-	var golfBallMaterial = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
-
+	var golfBallMaterial;
+	if (USE_VERTEX_COLORS) {
+		golfBallMaterial = new THREE.MeshPhongMaterial({vertexColors: THREE.VertexColors});
+	} else {
+		golfBallMaterial = new THREE.MeshPhongMaterial({color: "red"});
+	}
 	golfBall = new THREE.Mesh(golfBallGeometry, golfBallMaterial);
 	scene.add(golfBall);
 

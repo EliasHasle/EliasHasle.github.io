@@ -5,15 +5,16 @@
  * @author Mugen87 / https://github.com/Mugen87
  */
 
-import { Geometry } from '../core/Geometry.js';
+/*import { Geometry } from '../core/Geometry.js';
 import { BufferGeometry } from '../core/BufferGeometry.js';
 import { Float32BufferAttribute } from '../core/BufferAttribute.js';
 import { Vector3 } from '../math/Vector3.js';
-import { Vector2 } from '../math/Vector2.js';
+import { Vector2 } from '../math/Vector2.js';*/
+let {Geometry, BufferGeometry, Float32BufferAttribute, Vector3, Vector2} = THREE;
 
 // PolyhedronGeometry
 
-function PolyhedronGeometry( vertices, indices, radius, detail ) {
+function PolyhedronGeometry( vertices, indices, radius, detail, buildIndexed ) {
 
 	Geometry.call( this );
 
@@ -26,7 +27,7 @@ function PolyhedronGeometry( vertices, indices, radius, detail ) {
 		detail: detail
 	};
 
-	this.fromBufferGeometry( new PolyhedronBufferGeometry( vertices, indices, radius, detail ) );
+	this.fromBufferGeometry( new PolyhedronBufferGeometry( vertices, indices, radius, detail, buildIndexed ) );
 	this.mergeVertices();
 
 }
@@ -73,10 +74,13 @@ function PolyhedronBufferGeometry( vertices, indices, radius, detail, buildIndex
 	generateUVs();
 
 	//buildIndexed defaults to undefined (falsy)
+	console.log("buildIndexed = ", buildIndexed);
 	if (buildIndexed) {
-		let snapTolerance = 0.01*Math.sqrt(4*Math.PI*radius**2/vertexBuffer.length);
+		//Merge vertices before creating attributes from them
+		
+		let snapTolerance = 0.001*Math.sqrt(4*Math.PI*radius**2/vertexBuffer.length);
 		let sparseGrid = {};
-		let cellSize = 2*radius/snapTolerance;
+		let cellSize = 4*radius/snapTolerance;
 		let side = Math.floor((2*radius+2*cellSize)/cellSize);
 		let centerOffset = radius+cellSize;
 		let V = vertexBuffer.length/3;
@@ -86,8 +90,8 @@ function PolyhedronBufferGeometry( vertices, indices, radius, detail, buildIndex
 		
 		for (let iv = 0; iv < V; iv++) {
 			v.fromArray(vertexBuffer, 3*iv);
-			v.subScalar(centerOffset);
-			v.divScalar(cellSize);
+			v.addScalar(centerOffset);
+			v.divideScalar(cellSize);
 			
 			let key = v.dot(v_key);
 
@@ -99,6 +103,7 @@ function PolyhedronBufferGeometry( vertices, indices, radius, detail, buildIndex
 		
 		let canonVertexBuffer = [];
 		let canonUvBuffer = [];
+		let canonCounter = 0;
 		
 		let canonDict = {};
 		let uv1 = new THREE.Vector2();
@@ -106,18 +111,19 @@ function PolyhedronBufferGeometry( vertices, indices, radius, detail, buildIndex
 			let ivs = sparseGrid[key];
 			let iv_canon = ivs[0];
 			v.fromArray(vertexBuffer, 3*iv_canon);
-			canonVertexBuffer.push(...v.elements);
+			canonVertexBuffer.push(v.x,v.y,v.z);
 			uv1.fromArray(uvBuffer, 2*iv_canon);
-			canonUvBuffer.push(...uv1.elements);
-			for (let iv of ivs.slice(1)) {
-				canonDict[iv] = iv_canon;
+			canonUvBuffer.push(uv1.x, uv1.y);
+			for (let iv of ivs) {
+				canonDict[iv] = canonCounter;
 			}
+			canonCounter++;
 		}
 		
 		let F = V/3;
 		let indexBuffer = [];
-		for (let f = 0; f < F; f++) {
-			indexBuffer.push(canonDict[3*f], canonDict[3*f+1], canonDict[3*f+2]);
+		for (let iv = 0; iv < V; iv++) {
+			indexBuffer.push(canonDict[iv]);
 		}
 		
 		this.addAttribute( 'position', new Float32BufferAttribute( canonVertexBuffer, 3 ) );
@@ -396,5 +402,190 @@ function PolyhedronBufferGeometry( vertices, indices, radius, detail, buildIndex
 PolyhedronBufferGeometry.prototype = Object.create( BufferGeometry.prototype );
 PolyhedronBufferGeometry.prototype.constructor = PolyhedronBufferGeometry;
 
+// IcosahedronGeometry
 
-export { PolyhedronGeometry, PolyhedronBufferGeometry };
+function IcosahedronGeometry( radius, detail, buildIndexed ) {
+
+	Geometry.call( this );
+
+	this.type = 'IcosahedronGeometry';
+
+	this.parameters = {
+		radius: radius,
+		detail: detail
+	};
+
+	this.fromBufferGeometry( new IcosahedronBufferGeometry( radius, detail, buildIndexed ) );
+	this.mergeVertices();
+
+}
+
+IcosahedronGeometry.prototype = Object.create( Geometry.prototype );
+IcosahedronGeometry.prototype.constructor = IcosahedronGeometry;
+
+// IcosahedronBufferGeometry
+
+function IcosahedronBufferGeometry( radius, detail, buildIndexed ) {
+
+	var t = ( 1 + Math.sqrt( 5 ) ) / 2;
+
+	var vertices = [
+		- 1, t, 0, 	1, t, 0, 	- 1, - t, 0, 	1, - t, 0,
+		 0, - 1, t, 	0, 1, t,	0, - 1, - t, 	0, 1, - t,
+		 t, 0, - 1, 	t, 0, 1, 	- t, 0, - 1, 	- t, 0, 1
+	];
+
+	var indices = [
+		 0, 11, 5, 	0, 5, 1, 	0, 1, 7, 	0, 7, 10, 	0, 10, 11,
+		 1, 5, 9, 	5, 11, 4,	11, 10, 2,	10, 7, 6,	7, 1, 8,
+		 3, 9, 4, 	3, 4, 2,	3, 2, 6,	3, 6, 8,	3, 8, 9,
+		 4, 9, 5, 	2, 4, 11,	6, 2, 10,	8, 6, 7,	9, 8, 1
+	];
+
+	PolyhedronBufferGeometry.call( this, vertices, indices, radius, detail, buildIndexed );
+
+	this.type = 'IcosahedronBufferGeometry';
+
+	this.parameters = {
+		radius: radius,
+		detail: detail
+	};
+
+}
+
+IcosahedronBufferGeometry.prototype = Object.create( PolyhedronBufferGeometry.prototype );
+IcosahedronBufferGeometry.prototype.constructor = IcosahedronBufferGeometry;
+
+// DodecahedronGeometry
+
+function DodecahedronGeometry( radius, detail, buildIndexed ) {
+
+	Geometry.call( this );
+
+	this.type = 'DodecahedronGeometry';
+
+	this.parameters = {
+		radius: radius,
+		detail: detail
+	};
+
+	this.fromBufferGeometry( new DodecahedronBufferGeometry( radius, detail, buildIndexed ) );
+	this.mergeVertices();
+
+}
+
+DodecahedronGeometry.prototype = Object.create( Geometry.prototype );
+DodecahedronGeometry.prototype.constructor = DodecahedronGeometry;
+
+// DodecahedronBufferGeometry
+
+function DodecahedronBufferGeometry( radius, detail, buildIndexed ) {
+
+	var t = ( 1 + Math.sqrt( 5 ) ) / 2;
+	var r = 1 / t;
+
+	var vertices = [
+
+		// (±1, ±1, ±1)
+		- 1, - 1, - 1,	- 1, - 1, 1,
+		- 1, 1, - 1, - 1, 1, 1,
+		1, - 1, - 1, 1, - 1, 1,
+		1, 1, - 1, 1, 1, 1,
+
+		// (0, ±1/φ, ±φ)
+		 0, - r, - t, 0, - r, t,
+		 0, r, - t, 0, r, t,
+
+		// (±1/φ, ±φ, 0)
+		- r, - t, 0, - r, t, 0,
+		 r, - t, 0, r, t, 0,
+
+		// (±φ, 0, ±1/φ)
+		- t, 0, - r, t, 0, - r,
+		- t, 0, r, t, 0, r
+	];
+
+	var indices = [
+		3, 11, 7, 	3, 7, 15, 	3, 15, 13,
+		7, 19, 17, 	7, 17, 6, 	7, 6, 15,
+		17, 4, 8, 	17, 8, 10, 	17, 10, 6,
+		8, 0, 16, 	8, 16, 2, 	8, 2, 10,
+		0, 12, 1, 	0, 1, 18, 	0, 18, 16,
+		6, 10, 2, 	6, 2, 13, 	6, 13, 15,
+		2, 16, 18, 	2, 18, 3, 	2, 3, 13,
+		18, 1, 9, 	18, 9, 11, 	18, 11, 3,
+		4, 14, 12, 	4, 12, 0, 	4, 0, 8,
+		11, 9, 5, 	11, 5, 19, 	11, 19, 7,
+		19, 5, 14, 	19, 14, 4, 	19, 4, 17,
+		1, 12, 14, 	1, 14, 5, 	1, 5, 9
+	];
+
+	PolyhedronBufferGeometry.call( this, vertices, indices, radius, detail, buildIndexed );
+
+	this.type = 'DodecahedronBufferGeometry';
+
+	this.parameters = {
+		radius: radius,
+		detail: detail
+	};
+
+}
+
+DodecahedronBufferGeometry.prototype = Object.create( PolyhedronBufferGeometry.prototype );
+DodecahedronBufferGeometry.prototype.constructor = DodecahedronBufferGeometry;
+
+// OctahedronGeometry
+
+function OctahedronGeometry( radius, detail, buildIndexed ) {
+
+	Geometry.call( this );
+
+	this.type = 'OctahedronGeometry';
+
+	this.parameters = {
+		radius: radius,
+		detail: detail
+	};
+
+	this.fromBufferGeometry( new OctahedronBufferGeometry( radius, detail, buildIndexed ) );
+	this.mergeVertices();
+
+}
+
+OctahedronGeometry.prototype = Object.create( Geometry.prototype );
+OctahedronGeometry.prototype.constructor = OctahedronGeometry;
+
+// OctahedronBufferGeometry
+
+function OctahedronBufferGeometry( radius, detail, buildIndexed ) {
+
+	var vertices = [
+		1, 0, 0, 	- 1, 0, 0,	0, 1, 0,
+		0, - 1, 0, 	0, 0, 1,	0, 0, - 1
+	];
+
+	var indices = [
+		0, 2, 4,	0, 4, 3,	0, 3, 5,
+		0, 5, 2,	1, 2, 5,	1, 5, 3,
+		1, 3, 4,	1, 4, 2
+	];
+
+	PolyhedronBufferGeometry.call( this, vertices, indices, radius, detail, buildIndexed );
+
+	this.type = 'OctahedronBufferGeometry';
+
+	this.parameters = {
+		radius: radius,
+		detail: detail
+	};
+
+}
+
+OctahedronBufferGeometry.prototype = Object.create( PolyhedronBufferGeometry.prototype );
+OctahedronBufferGeometry.prototype.constructor = OctahedronBufferGeometry;
+
+THREE.PolyhedronBufferGeometry = PolyhedronBufferGeometry;
+THREE.IcosahedronBufferGeometry = IcosahedronBufferGeometry;
+THREE.DodecahedronBufferGeometry = DodecahedronBufferGeometry;
+THREE.OctahedronBufferGeometry = OctahedronBufferGeometry;
+//export { PolyhedronGeometry, PolyhedronBufferGeometry };
