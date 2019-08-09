@@ -9,6 +9,11 @@
 	
 </head>
 <body>
+
+<nav style="position: absolute; top:0; left:0, height:2vh; z-index:999">
+	<a href="." style="color: #66ffff">Back to index.</a>
+</nav>
+
 <script>
 /*
 Most notes are in the other files (Bouncing_balls and Bouncing_balls2).
@@ -319,6 +324,7 @@ function animate() {
 	//stats
 	stats = new Stats();
 	document.body.appendChild(stats.domElement);
+	stats.domElement.style.top = "3vh";
 	
 	let params = {S: 100};
 	let S = params.S;
