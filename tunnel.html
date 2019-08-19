@@ -1,9 +1,9 @@
 <html>
 <head>
-<title>Tunnel</title>
+<title>Infinite tunnel</title>
 
 <script src="three.js-master/build/three.js"></script>
-<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+<!--<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>-->
 </head>
 
 <body>
@@ -14,14 +14,17 @@
 
 <script>
 /*
+Road dimensions are according to Norwegian standard. :)
+
 TODO:
+- Properly exponential fog!
+- Maybe: Efficient representation with fewer geometries, using render groups, instancing etc.
+- Gameplay based on other cars that copy/rotate/mirror/slow own movement, and score that depends on max speed, survival time and distance travelled.
+
+For another game:
+- Realistic vehicle physics.
 - Twists and turns, with collision detection. I was/am planning to make the collision detection analytical by applying transforms from arbitrary positions back to a manageable coordinate system. I would manage to do that with straight lines and circle curves, but maybe not for general curves. I am probably going for another solution based on library functions, such as Curve and ExtrudedBufferGeometry.
 See: https://en.wikipedia.org/wiki/Frenet%E2%80%93Serret_formulas
-- Efficient representation with multimaterials and everything.
-- Realistic vehicle physics.
-- More graphics.
-- Timing.
-- Gameplay (Obstructions etc.).
 */
 
 //Units are base SI.
@@ -41,7 +44,7 @@ document.onkeyup = function(e) {
 	}
 }
 
-var clock, container, renderer, scale, scene, radius, tunnelLength, tunnel, road, car, camera, gp;
+var clock, container, renderer, scale, scene, radius, segmentLength, road, car, camera, gp;
 var omega, alpha;
 
 init();
@@ -54,19 +57,20 @@ function init() {
 	container.style = "position: absolute; top: 0; left: 0;"
 	document.body.appendChild(container);
 	renderer = new THREE.WebGLRenderer( {antialias: true} );
-	renderer.setClearColor(0xbbbbff);
-	renderer.physicallyCorrectLights = true; //NEW!
+	renderer.physicallyCorrectLights = true;
 	renderer.setPixelRatio(window.devicePixelRatio);
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	container.appendChild(renderer.domElement);
 	
+	const fogColor = 0x777766;
+	renderer.setClearColor(fogColor);////0xbbbbff);
 	scene = new THREE.Scene();
+	scene.fog = new THREE.Fog(fogColor, 0, 19*36);
 	
 	//parameters
 	radius = 4.1; // m
 	archAngle = Math.PI*5/4; //almost Arch angel
-	tunnelLength = 500; // m
-	roadLength = 700;
+	segmentLength = 36; // m
 
 	//useful computed value:
 	angle_down_from_road = (2*Math.PI-archAngle)/2;
@@ -100,42 +104,44 @@ function init() {
 	texture.generateMipmaps = true;
 
 	//Make tiles approx. proportional:
-	texture.repeat.set(22, 11*tunnelLength/(radius*archAngle));
+	texture.repeat.set(22, Math.round(11*segmentLength/(radius*archAngle)));
 	texture.needsUpdate = true;
 	
-	tunnel = new THREE.Mesh(
-		new THREE.CylinderGeometry(radius, radius, tunnelLength, 22, 1, true, Math.PI+angle_down_from_road, archAngle),
-		new THREE.MeshPhongMaterial( {map: texture, side: THREE.BackSide, bumpMap: texture, bumpScale: 0.02} )
+	const tunnelSegment = new THREE.Mesh(
+		new THREE.CylinderGeometry(radius, radius, segmentLength, 22, 1, true, Math.PI+angle_down_from_road, archAngle),
+		new THREE.MeshPhongMaterial( {map: texture, side: THREE.BackSide, bumpMap: texture, bumpScale: 0.02, fog: true} )
 	);
-	tunnel.rotation.x=Math.PI/2;
-	tunnel.rotation.y=Math.PI;
-	tunnel.position.y=radius*Math.cos(angle_down_from_road);
-	tunnel.position.z=(tunnelLength/2 + 100);
-	scene.add(tunnel);
+	tunnelSegment.position.y=radius*Math.cos(angle_down_from_road);
 
 	var lightRail = new THREE.Mesh(
-		new THREE.PlaneGeometry(0.2, tunnelLength),
-		new THREE.MeshBasicMaterial( {color: 0x333333} )	
+		new THREE.PlaneGeometry(0.2, segmentLength),
+		new THREE.MeshBasicMaterial( {color: 0x333333, fog: true, side: THREE.BackSide} )
 	);
-	lightRail.rotation.y = Math.PI;
+	//lightRail.rotation.y = Math.PI;
 	lightRail.position.z = (radius-0.1);
-	tunnel.add(lightRail);
+	tunnelSegment.add(lightRail);
 
 	var ceilLight = new THREE.Mesh(
 		new THREE.BoxGeometry(0.4, 0.4, 0.2),
 		new THREE.MeshPhongMaterial( {
-			color: 0xCCCC00,
+			color: 0xcccc00,
 			emissive: 0xffffaa,
 			//side: THREE.BackSide
+			fog: true
 			} )
 	);
-	ceilLight.position.z = 0.1;
-
-	for (var y = -tunnelLength/2; y < tunnelLength/2; y += 18) {
-			var cl = ceilLight.clone();
-			lightRail.add(cl);
-			cl.position.y = y;
-			cl.rotation.y = Math.random()*Math.PI/12-Math.PI/24;
+	ceilLight.position.z = -0.1;
+	
+	for (var y = -segmentLength/2; y < segmentLength/2; y += 18) {
+		var cl = ceilLight.clone();
+		cl.position.y = y;
+		let ang = 2*(Math.random()-0.5)*Math.PI/12;
+		cl.rotation.y = ang;
+		lightRail.add(cl);
+		
+		let sl = new THREE.SpotLight(0xffffaa, 50, 0, 0.5*Math.PI, 0.5, 2);
+		sl.target.position.z = -100000000;
+		cl.add(sl);
 	}
 	
 	//Asphalt surface
@@ -149,7 +155,7 @@ function init() {
 		64,64,
 		THREE.RGBFormat);
 	let repU = 100*2*radius*Math.sin(angle_down_from_road)/64;
-	let repV = 100*roadLength/64;
+	let repV = 100*segmentLength/64;
 	map.wrapS = THREE.RepeatWrapping;
 	map.wrapT = THREE.RepeatWrapping;
 			//golden ratio between bmap repeat and map repeat
@@ -166,33 +172,31 @@ function init() {
 					Math.round(repV));
 	bmap.needsUpdate = true; //test
 	
-	road = new THREE.Mesh(
-		new THREE.PlaneGeometry(2*radius*Math.sin(angle_down_from_road), roadLength),
+	const roadSegment = new THREE.Mesh(
+		new THREE.PlaneGeometry(2*radius*Math.sin(angle_down_from_road), segmentLength),
 		new THREE.MeshPhongMaterial( {
 			color: 0x444444,
 			//side: THREE.BackSide,
 			bumpMap: bmap,
-			bumpScale: 0.01
+			bumpScale: 0.01,
+			fog: true
 		} )
 	);
-	road.rotation.x=Math.PI/2;
-	road.rotation.y=Math.PI;
-	road.position.z=roadLength/2;
-
+	roadSegment.rotation.x=Math.PI/2;
+	roadSegment.rotation.y=Math.PI;
+	
 	var stripeWidth = 0.15;
 	
 	var stripe = new THREE.Mesh(
 		new THREE.PlaneGeometry(stripeWidth, 9),
-		new THREE.MeshBasicMaterial( {color: 0xCCCC00})//, side: THREE.BackSide} )
+		new THREE.MeshBasicMaterial( {color: 0xCCCC00, fog: true})//, side: THREE.BackSide} )
 	);
 	stripe.position.z = 0.1;
-
-	for (var y = -roadLength/2; y < roadLength/2; y += 12) {
-		//(function(y) {
-			var s = stripe.clone();
-			road.add(s);
-			s.position.y = y;
-		//}(y));
+	
+	for (var y = -segmentLength/2; y < segmentLength/2; y += 12) {
+		let s = stripe.clone();
+		roadSegment.add(s);
+		s.position.y = y;
 	}
 	
 	var roadWidth = 2*radius*Math.sin(angle_down_from_road);
@@ -200,26 +204,43 @@ function init() {
 	var shoulderProportion = 0.18;
 	//New definition:
 	stripe = new THREE.Mesh(
-		new THREE.PlaneGeometry(stripeWidth, roadLength),
-		new THREE.MeshBasicMaterial( {color: 0xeeeeee})//, side: THREE.BackSide} )
+		new THREE.PlaneGeometry(stripeWidth, segmentLength),
+		new THREE.MeshBasicMaterial( {color: 0xeeeeee, fog: true})//, side: THREE.BackSide} )
 	);
 	stripe.position.z = 0.1;
 	stripe.position.x = (roadWidth/2)*(1-shoulderProportion);
-	road.add(stripe);
+	roadSegment.add(stripe);
 	stripe = stripe.clone();
 	stripe.position.x = -(roadWidth/2)*(1-shoulderProportion);
-	road.add(stripe);
+	roadSegment.add(stripe);
 	
-	scene.add(road);
+	roadSegment.add(tunnelSegment);
 
-	scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+	//Join segments:
+	road = new THREE.Group();
+	for (let i = -19; i < 20; i++) {
+		let seg = roadSegment.clone();
+		seg.position.z = i*segmentLength;
+		road.add(seg);
+	}
+	scene.add(road);
+	
+	for (let seg of road.children) {
+		let lightRail = seg.children[5].children[0];
+		for (let cl of lightRail.children) {
+			let sl = cl.children[0];
+			cl.add(sl.target);
+		}
+	}
+
+	//scene.add(new THREE.AmbientLight(0xffffaa, 0.3));
 
 	//car object
 	var width = 1.6;
 	var length = 2;
 	var height = 0.8;
-	car = new THREE.Mesh(new THREE.BoxBufferGeometry(length,height,width),
-					new THREE.MeshPhongMaterial({color: 0xff0000}));
+	car = new THREE.Object3D();/*new THREE.Mesh(new THREE.BoxBufferGeometry(length,height,width),
+					new THREE.MeshPhongMaterial({color: 0xff0000, fog: true}));*/
 	car.position.set(-roadWidth*(1-shoulderProportion)/4,height/2,0);
 	//car.velocity = new THREE.Vector3(0,0,0);
 	car.speed = 0;
@@ -245,7 +266,7 @@ function init() {
 	
 	camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.01, 10000);
 	camera.position.set(car.driverSkew,car.eyeHeight,0);
-	camera.lookAt(new THREE.Vector3(0,0,tunnelLength)); //almost right.
+	camera.lookAt(new THREE.Vector3(0,0,segmentLength)); //almost right.
 	car.add(camera);
 
 	var leftHeadLight = new THREE.SpotLight(0xffffff, 400, car.headLightRange, Math.PI/8, 0.2, 2);
@@ -258,24 +279,25 @@ function init() {
 	rightHeadLight.target.position.x = (car.headLightInterval/2);
 	car.add(rightHeadLight, rightHeadLight.target);
 
-	var endLight = new THREE.PointLight(0xbbbbff, 100, 2);
-	//endLight.position.y = -(tunnelLength/2);
-	//tunnel.add(endLight);
+/*	var endLight = new THREE.PointLight(0xbbbbff, 100, 2);
+	//endLight.position.y = -(segmentLength/2);
+	//tunnelSegment.add(endLight);
 	//endLight = endLight.clone();
-	endLight.position.y = (tunnelLength/2);
-	tunnel.add(endLight);
+	endLight.position.y = (segmentLength/2);
+	tunnelSegment.add(endLight);
 	var startLight = new THREE.SpotLight(0xbbbbff, 100, 200, Math.PI/2, 2);
-	startLight.position.y = (-tunnelLength/2-radius);
+	startLight.position.y = (-segmentLength/2-radius);
 	startLight.target = endLight;
-	tunnel.add(startLight);
+	tunnelSegment.add(startLight);*/
 	
 	//use for debugging when needed:
 	//controls = new THREE.OrbitControls(camera, renderer.domElement);
 	
 	window.addEventListener('resize', onWindowResize, false);
 	
-	setInterval(animate, 5);
-	render();
+	requestAnimationFrame(animate);
+	//setInterval(animate, 5);
+	//setTimeout(render, 10);
 }
 
 function animate() {
@@ -320,7 +342,8 @@ function animate() {
 	var turning_radius = car.axle_distance/(2*Math.sin(car.wheel_angle/2))
 	//console.log(turning_radius); //OK
 	car.rotation.y += car.speed*dt/turning_radius; //theta = s/r
-	var heading = car.getWorldDirection();
+	var heading = new THREE.Vector3();
+	car.getWorldDirection(heading);
 	car.position.addScaledVector(heading,car.speed*dt);
 	//rudimentary crash handling.
 	if (Math.abs(car.position.x) > (radius-0.5*car.headLightInterval)) {
@@ -328,6 +351,8 @@ function animate() {
 		car.speed*=0.2;
 		car.rotation.y = Math.round(((car.rotation.y)%(2*Math.PI))/Math.PI)*Math.PI;
 	}
+
+	road.position.z = Math.sign(car.position.z)*Math.floor(Math.abs(car.position.z)/36)*36;
 	
 	//var speed = car.velocity.length(); //probably need velocity decomposed in car direction and perpendicular to it.
 
@@ -340,12 +365,15 @@ function animate() {
 	//alpha = -(0.05+(Math.random()-0.5)/100)*car.rotation.z;
 	//omega += alpha*dt;
 	//car.rotation.z += omega*dt;
+
+	renderer.render(scene, camera);
+	requestAnimationFrame(animate);
 }
 
-function render() {
+/*function render() {
 	renderer.render(scene, camera);
 	requestAnimationFrame(render);
-}
+}*/
 
 function onWindowResize() {
 	camera.aspect = window.innerWidth / window.innerHeight;
