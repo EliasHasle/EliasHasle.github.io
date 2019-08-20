@@ -77,18 +77,28 @@ function init() {
 
 	//Generate tile texture/bumpmap
 	var tileData = new Uint8Array(3*256*128);
-	var pos=0, lum;
+	var tileBumpData = new Uint8Array(3*256*128);
+	var pos=0, lum, bump;
 	for (var i=0; i<256; i++) {
 		for (var j=0; j<128; j++) {
 			if (i===0 || i===255 || 
 				j===0 || j===127) {
-				lum=128;
+				lum = 128;
+				bump = 128;
 			} else {
-				lum=200;
+				lum = 200;
+				let x = (i-128)/128;
+				let y = (j-64)/64;
+				let r = (x**2+y**2)**0.5/Math.sqrt(2);
+				let theta = Math.atan(y,x);
+				bump = 200 + 55*Math.cos(0.5*Math.PI*r);//*(0.75+0.25*Math.sin(5*theta));
 			}
 			tileData[pos] = lum; //r
 			tileData[pos+1] = lum; //g
 			tileData[pos+2] = lum; //b	
+			tileBumpData[pos] = bump; //r
+			tileBumpData[pos+1] = bump; //g
+			tileBumpData[pos+2] = bump; //b	
 			pos += 3;
 		}
 	}
@@ -102,20 +112,33 @@ function init() {
 		THREE.LinearMipMapLinearFilter,
 		1);
 	texture.generateMipmaps = true;
-
 	//Make tiles approx. proportional:
 	texture.repeat.set(22, Math.round(11*segmentLength/(radius*archAngle)));
 	texture.needsUpdate = true;
 	
+	var tileBumpTexture = new THREE.DataTexture(
+		tileBumpData,
+		128,256,
+		THREE.RGBFormat,
+		undefined, undefined,
+		THREE.RepeatWrapping, THREE.RepeatWrapping,
+		THREE.LinearFilter,
+		THREE.LinearMipMapLinearFilter,
+		1);
+	tileBumpTexture.generateMipmaps = true;
+	//Make tiles approx. proportional:
+	tileBumpTexture.repeat.set(22, Math.round(11*segmentLength/(radius*archAngle)));
+	tileBumpTexture.needsUpdate = true;
+	
 	const tunnelSegment = new THREE.Mesh(
 		new THREE.CylinderGeometry(radius, radius, segmentLength, 22, 1, true, Math.PI+angle_down_from_road, archAngle),
-		new THREE.MeshPhongMaterial( {map: texture, side: THREE.BackSide, bumpMap: texture, bumpScale: 0.02, fog: true} )
+		new THREE.MeshPhongMaterial( {map: texture, side: THREE.BackSide, bumpMap: tileBumpTexture, bumpScale: 0.02, fog: true} )
 	);
 	tunnelSegment.position.y=radius*Math.cos(angle_down_from_road);
 
 	var lightRail = new THREE.Mesh(
 		new THREE.PlaneGeometry(0.2, segmentLength),
-		new THREE.MeshBasicMaterial( {color: 0x333333, fog: true, side: THREE.BackSide} )
+		new THREE.MeshPhongMaterial( {color: 0x333333, fog: true, side: THREE.BackSide} )
 	);
 	//lightRail.rotation.y = Math.PI;
 	lightRail.position.z = (radius-0.1);
@@ -189,7 +212,7 @@ function init() {
 	
 	var stripe = new THREE.Mesh(
 		new THREE.PlaneGeometry(stripeWidth, 9),
-		new THREE.MeshBasicMaterial( {color: 0xCCCC00, fog: true})//, side: THREE.BackSide} )
+		new THREE.MeshPhongMaterial( {color: 0xCCCC00, fog: true})//, side: THREE.BackSide} )
 	);
 	stripe.position.z = 0.1;
 	
@@ -205,7 +228,7 @@ function init() {
 	//New definition:
 	stripe = new THREE.Mesh(
 		new THREE.PlaneGeometry(stripeWidth, segmentLength),
-		new THREE.MeshBasicMaterial( {color: 0xeeeeee, fog: true})//, side: THREE.BackSide} )
+		new THREE.MeshPhongMaterial( {color: 0xeeeeee, fog: true})//, side: THREE.BackSide} )
 	);
 	stripe.position.z = 0.1;
 	stripe.position.x = (roadWidth/2)*(1-shoulderProportion);
