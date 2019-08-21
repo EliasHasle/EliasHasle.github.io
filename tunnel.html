@@ -290,10 +290,9 @@ TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(TunnelRoad.angle_down_from_r
 		undefined, undefined,
 		THREE.RepeatWrapping, THREE.RepeatWrapping,
 		THREE.LinearFilter,
-		THREE.NearestFilter/*THREE.LinearMipmapLinearFilter,
-		1*/);
-	asphaltBumpMap.wrapS = THREE.RepeatWrapping;
-	asphaltBumpMap.wrapT = THREE.RepeatWrapping;
+		THREE.LinearMipmapLinearFilter,
+		1);
+	asphaltBumpMap.generateMipmaps = true;
 	asphaltBumpMap.repeat.set(Math.round(repU),
 					Math.round(repV));
 	asphaltBumpMap.needsUpdate = true; //test
