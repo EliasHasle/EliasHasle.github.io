@@ -17,13 +17,16 @@
 Road dimensions are according to Norwegian standard. :)
 
 TODO:
-- Properly exponential fog!
-- Maybe: Efficient representation with fewer geometries, using render groups, instancing etc.
+- Properly exponential fog! See https://github.com/mrdoob/three.js/issues/17264
+- Physical materials? Envmap could perhaps be from cubecamera?
+- Refactoring with nice classes.
+- Efficient representation with fewer draw calls, using merging, render groups, instancing etc.
 - Gameplay based on other cars that copy/rotate/mirror/slow own movement, and score that depends on max speed, survival time and distance travelled.
 
 For another game:
 - Realistic vehicle physics.
-- Twists and turns, with collision detection. I was/am planning to make the collision detection analytical by applying transforms from arbitrary positions back to a manageable coordinate system. I would manage to do that with straight lines and circle curves, but maybe not for general curves. I am probably going for another solution based on library functions, such as Curve and ExtrudedBufferGeometry.
+- Twists and turns, based on permuting a fixed set of tunnel segments. Can use Object3D.attach to seamlessly build an "infinite-depth" scene graph.
+- Proper collision detection. I was/am planning to make the collision detection analytical by applying transforms from arbitrary positions back to a manageable coordinate system. I would manage to do that with straight lines and circle curves, but maybe not for general curves. I am probably going for another solution based on library functions, such as Curve and ExtrudedBufferGeometry.
 See: https://en.wikipedia.org/wiki/Frenet%E2%80%93Serret_formulas
 */
 
@@ -62,10 +65,12 @@ function init() {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	container.appendChild(renderer.domElement);
 	
+	const dirSegments = 10;
+	
 	const fogColor = 0x777766;
 	renderer.setClearColor(fogColor);////0xbbbbff);
 	scene = new THREE.Scene();
-	scene.fog = new THREE.Fog(fogColor, 0, 19*36);
+	scene.fog = new THREE.Fog(fogColor, 0, (dirSegments-1)*36);
 	
 	//parameters
 	radius = 4.1; // m
@@ -77,31 +82,38 @@ function init() {
 
 	//Generate tile texture/bumpmap
 	var tileData = new Uint8Array(3*256*128);
+	var darkData = new Uint8Array(3*256*128);
 	var tileBumpData = new Uint8Array(3*256*128);
-	var pos=0, lum, bump;
+	var pos=0, lum, dark, bump;
 	for (var i=0; i<256; i++) {
 		for (var j=0; j<128; j++) {
 			if (i===0 || i===255 || 
 				j===0 || j===127) {
 				lum = 128;
-				bump = 128;
+				dark = 64;
+				bump = 0;
 			} else {
 				lum = 200;
+				dark = 100;
 				let x = (i-128)/128;
 				let y = (j-64)/64;
 				let r = (x**2+y**2)**0.5/Math.sqrt(2);
-				let theta = Math.atan(y,x);
-				bump = 200 + 55*Math.cos(0.5*Math.PI*r);//*(0.75+0.25*Math.sin(5*theta));
+				let theta = Math.atan2(y,x);
+				bump = 72 + 55*Math.cos(0.5*Math.PI*r)*(1-r**2*0.1*0.5*(1+Math.sin(8*theta/2*Math.PI)));
 			}
 			tileData[pos] = lum; //r
 			tileData[pos+1] = lum; //g
 			tileData[pos+2] = lum; //b	
+			darkData[pos] = dark; //r
+			darkData[pos+1] = dark; //g
+			darkData[pos+2] = dark; //b	
 			tileBumpData[pos] = bump; //r
 			tileBumpData[pos+1] = bump; //g
 			tileBumpData[pos+2] = bump; //b	
 			pos += 3;
 		}
 	}
+
 	var texture = new THREE.DataTexture(
 		tileData,
 		128,256,
@@ -113,8 +125,22 @@ function init() {
 		1);
 	texture.generateMipmaps = true;
 	//Make tiles approx. proportional:
-	texture.repeat.set(22, Math.round(11*segmentLength/(radius*archAngle)));
+	texture.repeat.set(7, Math.round(11*segmentLength/(radius*archAngle)));
 	texture.needsUpdate = true;
+
+	var darkTexture = new THREE.DataTexture(
+		darkData,
+		128,256,
+		THREE.RGBFormat,
+		undefined, undefined,
+		THREE.RepeatWrapping, THREE.RepeatWrapping,
+		THREE.LinearFilter,
+		THREE.LinearMipMapLinearFilter,
+		1);
+	darkTexture.generateMipmaps = true;
+	//Make tiles approx. proportional:
+	darkTexture.repeat.set(7, Math.round(11*segmentLength/(radius*archAngle)));
+	darkTexture.needsUpdate = true;
 	
 	var tileBumpTexture = new THREE.DataTexture(
 		tileBumpData,
@@ -127,25 +153,55 @@ function init() {
 		1);
 	tileBumpTexture.generateMipmaps = true;
 	//Make tiles approx. proportional:
-	tileBumpTexture.repeat.set(22, Math.round(11*segmentLength/(radius*archAngle)));
+	tileBumpTexture.repeat.set(7, Math.round(11*segmentLength/(radius*archAngle)));
 	tileBumpTexture.needsUpdate = true;
 	
-	const tunnelSegment = new THREE.Mesh(
-		new THREE.CylinderGeometry(radius, radius, segmentLength, 22, 1, true, Math.PI+angle_down_from_road, archAngle),
-		new THREE.MeshPhongMaterial( {map: texture, side: THREE.BackSide, bumpMap: tileBumpTexture, bumpScale: 0.02, fog: true} )
-	);
+	const tunnelSegment = new THREE.Group();
 	tunnelSegment.position.y=radius*Math.cos(angle_down_from_road);
 
+	/*const tunnelCeiling0 = new THREE.Mesh(
+		new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 22, 1, true, Math.PI+angle_down_from_road, archAngle),
+		new THREE.MeshPhongMaterial( {map: texture, side: THREE.BackSide, bumpMap: tileBumpTexture, bumpScale: 0.02, fog: true} )
+	);
+	tunnelSegment.add(tunnelCeiling0);*/
+	
+	const lightCeilingMat = new THREE.MeshPhongMaterial( {map: texture, side: THREE.BackSide, bumpMap: tileBumpTexture, bumpScale: 0.04, fog: true} );
+	const darkCeilingMat = new THREE.MeshPhongMaterial( {map: darkTexture, side: THREE.BackSide, bumpMap: tileBumpTexture, bumpScale: 0.04, fog: true} );
+	
+	const tunnelCeiling1 = new THREE.Mesh(
+		new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 7, 1, true, Math.PI+angle_down_from_road, archAngle/3),
+		lightCeilingMat
+	);
+	tunnelSegment.add(tunnelCeiling1);
+	
+	const tunnelCeiling2 = new THREE.Mesh(
+		new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 8, 1, true, Math.PI+angle_down_from_road+archAngle/3, archAngle/3),
+		darkCeilingMat
+	);
+	let uva = tunnelCeiling2.geometry.attributes.uv.array;
+	for (let i = 0; i < uva.length; i+=2) {
+		uva[i] = uva[i]*8/7;
+	}
+	tunnelCeiling2.geometry.attributes.uv.needsUpdate = true;
+	tunnelSegment.add(tunnelCeiling2);
+	
+	const tunnelCeiling3 = new THREE.Mesh(
+		new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 7, 1, true, Math.PI+angle_down_from_road+2*archAngle/3, archAngle/3),
+		lightCeilingMat
+	);
+	tunnelSegment.add(tunnelCeiling3);
+
 	var lightRail = new THREE.Mesh(
-		new THREE.PlaneGeometry(0.2, segmentLength),
+		new THREE.PlaneBufferGeometry(0.2, segmentLength),
 		new THREE.MeshPhongMaterial( {color: 0x333333, fog: true, side: THREE.BackSide} )
 	);
+	lightRail.name = "lightRail";
 	//lightRail.rotation.y = Math.PI;
 	lightRail.position.z = (radius-0.1);
 	tunnelSegment.add(lightRail);
 
 	var ceilLight = new THREE.Mesh(
-		new THREE.BoxGeometry(0.4, 0.4, 0.2),
+		new THREE.BoxBufferGeometry(0.4, 0.4, 0.2),
 		new THREE.MeshPhongMaterial( {
 			color: 0xcccc00,
 			emissive: 0xffffaa,
@@ -158,8 +214,8 @@ function init() {
 	for (var y = -segmentLength/2; y < segmentLength/2; y += 18) {
 		var cl = ceilLight.clone();
 		cl.position.y = y;
-		let ang = 2*(Math.random()-0.5)*Math.PI/12;
-		cl.rotation.y = ang;
+		//let ang = 2*(Math.random()-0.5)*Math.PI/12;
+		//cl.rotation.y = ang;
 		lightRail.add(cl);
 		
 		let sl = new THREE.SpotLight(0xffffaa, 50, 0, 0.5*Math.PI, 0.5, 2);
@@ -181,7 +237,7 @@ function init() {
 	let repV = 100*segmentLength/64;
 	map.wrapS = THREE.RepeatWrapping;
 	map.wrapT = THREE.RepeatWrapping;
-			//golden ratio between bmap repeat and map repeat
+			//golden ratio between bmap repeat and map repeat (DOESN'T WORK! Must use custom shader for this. Should also use high-res phi.)
 	map.repeat.set(Math.round(0.618*repU),
 					Math.round(0.618*repV));
 	map.needsUpdate = true; //test
@@ -196,7 +252,7 @@ function init() {
 	bmap.needsUpdate = true; //test
 	
 	const roadSegment = new THREE.Mesh(
-		new THREE.PlaneGeometry(2*radius*Math.sin(angle_down_from_road), segmentLength),
+		new THREE.PlaneBufferGeometry(2*radius*Math.sin(angle_down_from_road), segmentLength),
 		new THREE.MeshPhongMaterial( {
 			color: 0x444444,
 			//side: THREE.BackSide,
@@ -211,8 +267,8 @@ function init() {
 	var stripeWidth = 0.15;
 	
 	var stripe = new THREE.Mesh(
-		new THREE.PlaneGeometry(stripeWidth, 9),
-		new THREE.MeshPhongMaterial( {color: 0xCCCC00, fog: true})//, side: THREE.BackSide} )
+		new THREE.PlaneBufferGeometry(stripeWidth, 9),
+		new THREE.MeshPhongMaterial( {color: 0xcccc00, emissive: 0xcccc00, emissiveIntensity: 0.025, fog: true})//, side: THREE.BackSide} )
 	);
 	stripe.position.z = 0.1;
 	
@@ -227,8 +283,8 @@ function init() {
 	var shoulderProportion = 0.18;
 	//New definition:
 	stripe = new THREE.Mesh(
-		new THREE.PlaneGeometry(stripeWidth, segmentLength),
-		new THREE.MeshPhongMaterial( {color: 0xeeeeee, fog: true})//, side: THREE.BackSide} )
+		new THREE.PlaneBufferGeometry(stripeWidth, segmentLength),
+		new THREE.MeshPhongMaterial( {color: 0xeeeeee, emissive: 0xeeeeee, emissiveIntensity: 0.025, fog: true})//, side: THREE.BackSide} )
 	);
 	stripe.position.z = 0.1;
 	stripe.position.x = (roadWidth/2)*(1-shoulderProportion);
@@ -241,7 +297,7 @@ function init() {
 
 	//Join segments:
 	road = new THREE.Group();
-	for (let i = -19; i < 20; i++) {
+	for (let i = -(dirSegments-1); i < dirSegments; i++) {
 		let seg = roadSegment.clone();
 		seg.position.z = i*segmentLength;
 		road.add(seg);
@@ -249,7 +305,7 @@ function init() {
 	scene.add(road);
 	
 	for (let seg of road.children) {
-		let lightRail = seg.children[5].children[0];
+		let lightRail = seg.getObjectByName("lightRail");//children[5].children[0];
 		for (let cl of lightRail.children) {
 			let sl = cl.children[0];
 			cl.add(sl.target);
@@ -287,7 +343,7 @@ function init() {
 
 	scene.add(car);
 	
-	camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.01, 10000);
+	camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.01, dirSegments*segmentLength);
 	camera.position.set(car.driverSkew,car.eyeHeight,0);
 	camera.lookAt(new THREE.Vector3(0,0,segmentLength)); //almost right.
 	car.add(camera);
