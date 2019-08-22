@@ -293,8 +293,7 @@ TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(TunnelRoad.angle_down_from_r
 		THREE.LinearMipmapLinearFilter,
 		1);
 	asphaltBumpMap.generateMipmaps = true;
-	asphaltBumpMap.repeat.set(Math.round(repU),
-					Math.round(repV));
+	asphaltBumpMap.repeat.set(repU, repV);
 	asphaltBumpMap.needsUpdate = true; //test
 	
 	Object.assign(TunnelRoad, {
