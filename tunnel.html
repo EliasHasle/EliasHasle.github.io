@@ -15,15 +15,14 @@
 
 <script>
 /*
-Road dimensions are according to Norwegian standard. :)
+
 
 TODO:
-- Badly needed: Efficient representation with fewer draw calls, using merging, render groups, instancing etc.
-- Properly exponential fog! See https://github.com/mrdoob/three.js/issues/17264
+- Efficient representation with fewer draw calls, using merging, render groups, instancing etc.
 - Physical materials? EnvMap could perhaps be from cubecamera?
 - Gameplay based on other cars that copy/rotate/mirror/slow own movement, and score that depends on max speed, survival time and distance travelled.
 
-For another game:
+For another(?) game:
 - Realistic vehicle physics.
 - Twists and turns, based on permuting a fixed set of tunnel segments. Can use Object3D.attach to seamlessly build an "infinite-depth" scene graph.
 - Proper collision detection. I was/am planning to make the collision detection analytical by applying transforms from arbitrary positions back to a manageable coordinate system. I would manage to do that with straight lines and circle curves, but maybe not for general curves. I am probably going for another solution based on library functions, such as Curve and ExtrudedBufferGeometry.
@@ -167,6 +166,7 @@ class TunnelRoad extends THREE.Group {
 
 // CONSTANTS //
 {
+//Road dimensions are according to Norwegian standard. :)
 //Could have been parameters, but are needed for textures
 Object.assign(TunnelRoad, {
 	radius: 4.1,
