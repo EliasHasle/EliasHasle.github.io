@@ -2,7 +2,8 @@
 <head>
 <title>Infinite tunnel</title>
 
-<script src="three.js-master/build/three.js"></script>
+<!--<script src="three.js-master/build/three.js"></script>-->
+<script src="js/three_with_FogExp.js"></script>
 <!--<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>-->
 </head>
 
@@ -439,7 +440,8 @@ var omega, alpha;
 	road = new TunnelRoad();
 	scene.add(road);
 
-	scene.fog = new THREE.Fog(fogColor, 0, (TunnelRoad.dirSegments-1)*36);
+	const fogDensity = Math.log(512)/(TunnelRoad.dirSegments*TunnelRoad.segmentLength);
+	scene.fog = new THREE.FogExp(fogColor, fogDensity);//0.001);//new THREE.Fog(fogColor, 0, (TunnelRoad.dirSegments-1)*36);
 	
 	car = new Car();
 	car.position.set(-TunnelRoad.roadWidth*(1-TunnelRoad.shoulderProportion)/4,car.height/2,0);
