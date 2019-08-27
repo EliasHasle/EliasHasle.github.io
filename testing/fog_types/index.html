@@ -8,6 +8,19 @@
 		<style>
 			body {
 				color: #61443e;
+				overflow: hidden;
+			}
+			div#info {
+				position: absolute;
+				top: 1vh;
+				z-index: 5;
+			}
+			div#container {
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100vw;
+				height: 100vh;
 			}
 			a {
 				color: #a06851;
@@ -21,7 +34,7 @@
 
 		<script type="module">
 
-			import * as THREE from './build/three.module.js';
+			import * as THREE from '../build/three.module.js';
 
 			import Stats from './jsm/libs/stats.module.js';
 			import { GUI } from './jsm/libs/dat.gui.module.js';
