@@ -164,10 +164,10 @@ class TunnelRoad extends THREE.Group {
 
 // CONSTANTS //
 {
-//Road dimensions are according to Norwegian standard. :)
+//Road marking dimensions are according to Norwegian standard. :) https://www.vegvesen.no/_attachment/69741/binary/1081797
 //Could have been parameters, but are needed for textures
 Object.assign(TunnelRoad, {
-	radius: 4.1,
+	roadWidth: 7.5,
 	dirSegments: 20,
 	archAngle: Math.PI*7/6,//5/4, //almost Arch angel
 	segmentLength: 36, // m
@@ -176,7 +176,9 @@ Object.assign(TunnelRoad, {
 });
 //Computed constants:
 TunnelRoad.roadAngle = (2*Math.PI - TunnelRoad.archAngle);
-TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(0.5*TunnelRoad.roadAngle);
+//TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(0.5*TunnelRoad.roadAngle);
+TunnelRoad.radius = TunnelRoad.roadWidth/(2*Math.sin(0.5*TunnelRoad.roadAngle));//4.1,
+console.log("TunnelRoad.radius = ",TunnelRoad.radius);
 }
 
 // DATA TEXTURES //
