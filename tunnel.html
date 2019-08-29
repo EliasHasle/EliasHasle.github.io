@@ -42,34 +42,34 @@ class TunnelRoad extends THREE.Group {
 		const segmentLength = TunnelRoad.segmentLength;
 		const roadWidth = TunnelRoad.roadWidth;
 		const shoulderProportion = TunnelRoad.shoulderProportion;
-		const angle_down_from_road = TunnelRoad.angle_down_from_road;
-		
+		const stripeWidth = TunnelRoad.stripeWidth;
+		const roadAngle = TunnelRoad.roadAngle;
 		
 		const tunnelSegment = new THREE.Group();
-		tunnelSegment.position.y=radius*Math.cos(angle_down_from_road);
+		tunnelSegment.position.z = radius*Math.cos(0.5*roadAngle);
 
 		const lightCeilingMat = new THREE.MeshPhongMaterial( {map: TunnelRoad.lightTileMap, side: THREE.BackSide, bumpMap: TunnelRoad.tileBumpMap, bumpScale: 0.04, fog: true} );
 		const darkCeilingMat = new THREE.MeshPhongMaterial( {map: TunnelRoad.darkTileMap, side: THREE.BackSide, bumpMap: TunnelRoad.tileBumpMap, bumpScale: 0.04, fog: true} );
 		
 		const tilesLeft = new THREE.Mesh(
-			new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 7, 1, true, Math.PI+angle_down_from_road, archAngle/3),
+			new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 7, 1, true, Math.PI+0.5*roadAngle, archAngle*7/21),
 			lightCeilingMat
 		);
 		tunnelSegment.add(tilesLeft);
 		
 		const tilesTop = new THREE.Mesh(
-			new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 8, 1, true, Math.PI+angle_down_from_road+archAngle/3, archAngle/3),
+			new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 8, 1, true, Math.PI+0.5*roadAngle+archAngle*7/21, archAngle*7/21),
 			darkCeilingMat
 		);
-		let uva = tilesTop.geometry.attributes.uv.array;
+		/*let uva = tilesTop.geometry.attributes.uv.array;
 		for (let i = 0; i < uva.length; i+=2) {
 			uva[i] = uva[i]*8/7;
 		}
-		tilesTop.geometry.attributes.uv.needsUpdate = true;
+		tilesTop.geometry.attributes.uv.needsUpdate = true;*/
 		tunnelSegment.add(tilesTop);
 		
 		const tilesRight = new THREE.Mesh(
-			new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 7, 1, true, Math.PI+angle_down_from_road+2*archAngle/3, archAngle/3),
+			new THREE.CylinderBufferGeometry(radius, radius, segmentLength, 7, 1, true, Math.PI+0.5*roadAngle+archAngle*14/21, archAngle*7/21),
 			lightCeilingMat
 		);
 		tunnelSegment.add(tilesRight);
@@ -107,7 +107,7 @@ class TunnelRoad extends THREE.Group {
 		}
 		
 		const roadSegment = new THREE.Mesh(
-			new THREE.PlaneBufferGeometry(2*radius*Math.sin(angle_down_from_road), segmentLength),
+			new THREE.PlaneBufferGeometry(roadWidth, segmentLength),
 			new THREE.MeshPhongMaterial( {
 				color: 0x444444,
 				//side: THREE.BackSide,
@@ -118,14 +118,12 @@ class TunnelRoad extends THREE.Group {
 		);
 		roadSegment.rotation.x=Math.PI/2;
 		roadSegment.rotation.y=Math.PI;
-		
-		var stripeWidth = 0.15;
-		
+				
 		var stripe = new THREE.Mesh(
 			new THREE.PlaneBufferGeometry(stripeWidth, 9),
 			new THREE.MeshPhongMaterial( {color: 0xcccc00, emissive: 0xcccc00, emissiveIntensity: 0.025, fog: true})//, side: THREE.BackSide} )
 		);
-		stripe.position.z = 0.1;
+		stripe.position.z = 0.01;
 		
 		for (var y = -segmentLength/2; y < segmentLength/2; y += 12) {
 			let s = stripe.clone();
@@ -138,7 +136,7 @@ class TunnelRoad extends THREE.Group {
 			new THREE.PlaneBufferGeometry(stripeWidth, segmentLength),
 			new THREE.MeshPhongMaterial( {color: 0xeeeeee, emissive: 0xeeeeee, emissiveIntensity: 0.025, fog: true})//, side: THREE.BackSide} )
 		);
-		stripe.position.z = 0.1;
+		stripe.position.z = 0.01;
 		stripe.position.x = (roadWidth/2)*(1-shoulderProportion);
 		roadSegment.add(stripe);
 		stripe = stripe.clone();
@@ -171,13 +169,14 @@ class TunnelRoad extends THREE.Group {
 Object.assign(TunnelRoad, {
 	radius: 4.1,
 	dirSegments: 20,
-	archAngle: Math.PI*5/4, //almost Arch angel
+	archAngle: Math.PI*7/6,//5/4, //almost Arch angel
 	segmentLength: 36, // m
-	shoulderProportion: 0.18
+	shoulderProportion: 0.18,
+	stripeWidth: 0.15
 });
 //Computed constants:
-TunnelRoad.angle_down_from_road = (2*Math.PI-TunnelRoad.archAngle)/2;
-TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(TunnelRoad.angle_down_from_road);
+TunnelRoad.roadAngle = (2*Math.PI - TunnelRoad.archAngle);
+TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(0.5*TunnelRoad.roadAngle);
 }
 
 // DATA TEXTURES //
@@ -186,7 +185,8 @@ TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(TunnelRoad.angle_down_from_r
 	const dirSegments = TunnelRoad.dirSegments;
 	const archAngle = TunnelRoad.archAngle;
 	const segmentLength = TunnelRoad.segmentLength;
-	const angle_down_from_road = TunnelRoad.angle_down_from_road;
+	const roadWidth = TunnelRoad.roadWidth;
+	const roadAngle = TunnelRoad.roadAngle;
 
 	//Generate tile textures and bump map
 	var tileData = new Uint8Array(3*256*128);
@@ -270,7 +270,7 @@ TunnelRoad.roadWidth = 2*TunnelRoad.radius*Math.sin(TunnelRoad.angle_down_from_r
 	for (var i=0; i<3*bumpSide*bumpSide; i+=3) {
 		bumpData[i] = Math.floor(Math.random()*256);
 	}
-	let repU = Math.round(100*2*radius*Math.sin(angle_down_from_road)/bumpSide);
+	let repU = Math.round(100*roadWidth/bumpSide);
 	let repV = Math.round(100*segmentLength/bumpSide);
 	/*var asphaltMap = new THREE.DataTexture(
 		bumpData,
@@ -375,7 +375,7 @@ class Car extends THREE.Group {
 		//AF-C-D*vmax-E*vmax^2=0 ==> vmax = (-D+sqrt(D^2+4(AF-C)*E))/2E ~= 65.6 m/s
 		this.speed += accbr*dt;
 		if (Math.abs(this.speed)<C*dt) this.speed = 0;
-		//I calculate the turning TunnelRoad.radius from cord length (this.axle_distance) and cord angle (this.wheel_angle),
+		//I calculate the turning radius from cord length (this.axle_distance) and cord angle (this.wheel_angle),
 		//by exploiting that halving both yields a right-angled triangle.
 		var turning_radius = this.axle_distance/(2*Math.sin(this.wheel_angle/2))
 		//console.log(turning_radius); //OK
