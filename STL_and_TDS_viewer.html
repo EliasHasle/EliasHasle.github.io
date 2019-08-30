@@ -93,7 +93,7 @@ function adjustCameraToModel() {
 	document.body.appendChild(container);
 	renderer = new THREE.WebGLRenderer({antialias: true});
 	renderer.setSize(window.innerWidth, window.innerHeight);
-	renderer.setClearColor(0x8888aa);
+	renderer.setClearColor(0x6666aa);
 	container.appendChild(renderer.domElement);
 	
 	//Scene setup:
@@ -146,6 +146,7 @@ function adjustCameraToModel() {
 	});
 	gui.add({zUp: false}, "zUp").onChange(function(value) {
 		model.rotation.x = value*(-0.5*Math.PI);
+		adjustCameraToModel();
 	});
 	let sunDir = {
 		sunPhi: 0.5,
