@@ -51,12 +51,13 @@ class TunnelRoad extends THREE.Group {
 		tunnel.name = "Tunnel group";
 		this.add(tunnel);
 		
-		const tilesLeftGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 1, true, Math.PI+0.5*roadAngle, archAngle*7/21);
-		const tilesRightGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 1, true, Math.PI+0.5*roadAngle+archAngle*14/21, archAngle*7/21);
-		const tilesTopGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 1, true, Math.PI+0.5*roadAngle+archAngle*7/21, archAngle*7/21);
+		const tilesLeftGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 2, true, Math.PI+0.5*roadAngle, archAngle*7/21);
+		const tilesRightGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 2, true, Math.PI+0.5*roadAngle+archAngle*14/21, archAngle*7/21);
+		const tilesTopGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 2, true, Math.PI+0.5*roadAngle+archAngle*7/21, archAngle*7/21);
 		const tunnelGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries([tilesLeftGeometry, tilesRightGeometry, tilesTopGeometry], true);
-		tunnelGeometry.addGroup(0, 84, 0);
-		tunnelGeometry.addGroup(84, 42, 1);
+		console.log(tunnelGeometry.groups[0].count);
+		tunnelGeometry.addGroup(0, 168, 0);
+		tunnelGeometry.addGroup(168, 84, 1);
 		
 		const lightTileMat = new THREE.MeshPhongMaterial( {map: TunnelRoad.lightTileMap, side: THREE.BackSide, bumpMap: TunnelRoad.tileBumpMap, bumpScale: 0.04, fog: true} );
 		const darkTileMat = new THREE.MeshPhongMaterial( {map: TunnelRoad.darkTileMap, side: THREE.BackSide, bumpMap: TunnelRoad.tileBumpMap, bumpScale: 0.04, fog: true} );
@@ -67,7 +68,7 @@ class TunnelRoad extends THREE.Group {
 		tunnel.add(tunnelWalls);	
 
 		const lightRail = new THREE.Mesh(
-			new THREE.PlaneBufferGeometry(0.2, segments*segmentLength),
+			new THREE.PlaneBufferGeometry(0.2, segments*segmentLength, 1, 2),
 			new THREE.MeshPhongMaterial( {color: 0x333333, fog: true, side: THREE.BackSide} )
 		);
 		lightRail.name = "lightRail";
@@ -107,7 +108,7 @@ class TunnelRoad extends THREE.Group {
 		tunnel.add(ceilLights);
 		
 		const asphalt = new THREE.Mesh(
-			new THREE.PlaneBufferGeometry(roadWidth, segments*segmentLength),
+			new THREE.PlaneBufferGeometry(roadWidth, segments*segmentLength, 1, 2),
 			new THREE.MeshPhongMaterial( {
 				color: 0x444444,
 				bumpMap: TunnelRoad.asphaltBumpMap,
@@ -139,9 +140,9 @@ class TunnelRoad extends THREE.Group {
 		midStripes.name = "Midstripes";
 		this.add(midStripes);
 	
-		const leftSideStripeGeometry = new THREE.PlaneBufferGeometry(stripeWidth, segments*segmentLength);
+		const leftSideStripeGeometry = new THREE.PlaneBufferGeometry(stripeWidth, segments*segmentLength, 1, 2);
 		leftSideStripeGeometry.translate(-(roadWidth/2)*(1-shoulderProportion),0,0);
-		const rightSideStripeGeometry = new THREE.PlaneBufferGeometry(stripeWidth, segments*segmentLength);
+		const rightSideStripeGeometry = new THREE.PlaneBufferGeometry(stripeWidth, segments*segmentLength, 1, 2);
 		rightSideStripeGeometry.translate((roadWidth/2)*(1-shoulderProportion),0,0);
 		const sideStripesGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries([leftSideStripeGeometry, rightSideStripeGeometry]);
 		
