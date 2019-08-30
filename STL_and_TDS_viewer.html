@@ -1,0 +1,171 @@
+<html>
+<head>
+	<title>STL viewer</title>
+	
+<script src="three.js-master/build/three.js"></script>
+<script src="three.js-master/examples/js/loaders/STLLoader.js"></script>
+<script src="three.js-master/examples/js/loaders/TDSLoader.js"></script>
+<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+<script src="three.js-master/examples/js/libs/dat.gui.js"></script>
+</head>
+
+<body>
+
+
+
+<script>
+"use strict";
+
+//Globals
+var clock, renderer, scene, model, material, camera, controls, gui;
+
+var browseModel = function() {
+	var browseButton;
+	return function () {
+		browseButton = document.createElement("input");
+		Object.assign(browseButton, {
+			type: "file",
+			multiple: false,
+			style: "display: none",
+			accept: ".stl, .3ds",
+			onchange: function(e) {
+				//console.log("Change event triggered on browse.");
+				let file = browseButton.files[0];
+				let parts = file.name.split(".");
+				let ext = parts[parts.length-1].toLowerCase();
+				let reader = new FileReader();
+				reader.onload = function(event) {
+					let result = event.target.result;
+					if (ext.toLowerCase() === "stl") {
+						let loader = new THREE.STLLoader();
+						let geometry = loader.parse(result);
+						addFromGeometry(geometry);
+					} else if (ext.toLowerCase() === "3ds") {
+						let loader = new THREE.TDSLoader();
+						if (model) scene.remove(model);
+						model = loader.parse(result);
+						scene.add(model);
+						adjustCameraToModel();
+					}
+				}
+				reader.readAsArrayBuffer(file);
+			}
+		});
+		browseButton.click();
+	};
+}();
+
+function addFromGeometry(geometry) {
+	if (material) material.dispose();
+	if (geometry.hasColors/*geometry.getAttribute("color")*/) {
+		console.log("color attribute found. Trying to enable vertex colors.");
+		material = new THREE.MeshPhongMaterial({transparent: true, opacity: geometry.alpha || 1, vertexColors: THREE.VertexColors});//, side: THREE.DoubleSide});
+	} else {
+		console.log("No color attribute found. Using default color.");
+		material = new THREE.MeshPhongMaterial({transparent: true, opacity: geometry.alpha || 1, color: 0xdddd88});//, side: THREE.DoubleSide});
+	}
+	if (model) scene.remove(model);
+	model = new THREE.Mesh(geometry, material);
+	scene.add(model);
+	adjustCameraToModel();
+}
+
+function adjustCameraToModel() {
+	//Automatically move camera to good initial distance and projection
+	let bb = new THREE.Box3().setFromObject(model).expandByPoint(scene.position);
+	let diag = bb.max.clone().sub(bb.min).length();
+	//console.log("diag = %.2f", diag);
+	let factor = Math.max(1, 1/camera.aspect)/Math.tan(0.5*(Math.PI*camera.fov/180));
+	camera.position.normalize().multiplyScalar(diag*factor);
+	camera.near = Math.min(0.5*factor, 1);
+	camera.far = 4*diag*factor; //wrong?
+	bb.getCenter(controls.target);
+	camera.lookAt(controls.target);
+	camera.updateProjectionMatrix();
+}
+
+(function main() {
+	//Renderer setup
+	clock = new THREE.Clock(/*false*/); //false vil skru av autostart
+	document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setClearColor(0x8888aa);
+	container.appendChild(renderer.domElement);
+	
+	//Scene setup:
+	scene = new THREE.Scene();
+	//scene.add(new THREE.GridHelper(1000, 32));
+	scene.add(new THREE.AmbientLight(0xffffee, 0.4));
+	var sun = new THREE.DirectionalLight(0xffffee, 1.5);
+	sun.position.set (1000,1000,1000); //direction, invariant with length
+	scene.add(sun);
+
+	//Camera setup
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 1, 100000);
+	window.addEventListener('resize', function() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}, false);
+	camera.position.set(-1400, 1200, 2500);
+	scene.add(camera);
+	
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	
+	//Menu
+	gui = new dat.GUI();
+	gui.add({browse: function() {
+		browseModel();
+	}}, "browse");
+
+	gui.add({opacity: 1}, "opacity", 0, 1).onChange(function(value) {
+		if (material !== undefined) {
+			material.opacity = value;
+		} else {
+			model.traverse((obj)=>{
+				if (obj.isMesh) {
+					obj.material.opacity = value;
+				}
+			});
+		}
+	});
+	gui.addColor({color: "#dddd88"}, "color").onChange(function(value) {
+		if (material !== undefined) {
+			material.color = new THREE.Color(value);
+		} else {
+			model.traverse((obj)=>{
+				if (obj.isMesh) {
+					obj.material.color = new THREE.Color(value);
+				}
+			});
+		}
+	});
+	gui.add({zUp: false}, "zUp").onChange(function(value) {
+		model.rotation.x = value*(-0.5*Math.PI);
+	});
+	let sunDir = {
+		sunPhi: 0.5,
+		sunTheta: 2,
+	};
+	function updateSun() {
+		sun.position.setFromSpherical(new THREE.Spherical(1, sunDir.sunPhi, sunDir.sunTheta));
+	}
+	gui.add(sunDir, "sunPhi", -0.5*Math.PI, 0.5*Math.PI).onChange(updateSun);
+	gui.add(sunDir, "sunTheta", 0, 2*Math.PI).onChange(updateSun);
+	gui.addColor({background: "#8888aa"}, "background").onChange(renderer.setClearColor);
+	animate();
+})();
+
+function animate() {
+	//var dt = clock.getDelta();
+	//var t = clock.getElapsedTime();
+	renderer.render(scene, camera);
+	requestAnimationFrame(animate);
+}
+</script>
+</body>
+</html>
