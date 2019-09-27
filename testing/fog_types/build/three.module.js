@@ -24943,7 +24943,7 @@ function WebGLRenderer( parameters ) {
 
 				material.needsUpdate = true;
 
-			} else if ( material.fog && ( materialProperties.fog !== fog || ( fog.isDensityFog && fog.needsUpdate ) ) ) {
+			} else if ( material.fog && ( materialProperties.fog !== fog || ( fog && fog.isDensityFog && fog.needsUpdate ) ) ) {
 
 				material.needsUpdate = true;
 				if ( fog.isDensityFog ) {
