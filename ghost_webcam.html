@@ -15,13 +15,14 @@
 </nav>
 
 <script>
-var videoTexture, videoSettings, videoStream, audioTrack;
+var videoTexture, videoSettings, rawVideoStream, videoStream, audioTrack;
 
 let gui = new dat.GUI();
 
 navigator.mediaDevices.getUserMedia({video: true, audio: true}).then(function(stream) {
+	rawVideoStream = stream; //global reference
 	videoSettings = stream.getVideoTracks()[0].getSettings();
-	console.log("videoSettings: width=%d, height=%d",videoSettings.width,videoSettings.height);
+	console.log("videoSettings: width=%d, height=%d, frameRate=%d",videoSettings.width,videoSettings.height, videoSettings.frameRate);
 	audioTrack = stream.getAudioTracks()[0];
 	//Making a separate pure video stream is a workaround
 	//let videoStream = new MediaStream(stream.getVideoTracks());
@@ -41,7 +42,7 @@ navigator.mediaDevices.getUserMedia({video: true, audio: true}).then(function(st
 	videoTexture.minFilter = THREE.LinearFilter;
 	init();
 	}
-	).catch(function(error){console.error(error);});
+).catch(function(error){console.error(error);});
 
 var renderer, scene, camera, smoother;
 
@@ -89,11 +90,15 @@ function init() {
 		if (!recording) {
 			data = [];
 			mediaRecorder = new MediaRecorder(videoStream);
+			//DEBUG (did not work either)
+			//mediaRecorder = new MediaRecorder(rawVideoStream);
+			console.log(mediaRecorder.mimeType);
 			mediaRecorder.ondataavailable = function(e) {data.push(e.data);};
 			mediaRecorder.onstop = function(e) {
-				let blob = new Blob(data, {type: "video/webm"});
+				//let blob = new Blob(data, {type: "video/webm"});
+				let blob = new Blob(data, {type: mediaRecorder.mimeType});
 				let a = document.createElement("a");
-				a.download = "Video_recording.webm";
+				a.download = "Video_recording";//true;//"Video_recording.webm";
 				a.href = window.URL.createObjectURL(blob);
 				a.click();
 			}
@@ -102,7 +107,7 @@ function init() {
 		} else {
 			mediaRecorder.stop();
 			recording = false;
-		}	
+		}
 	}},"record");
 	
 	

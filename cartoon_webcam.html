@@ -195,7 +195,7 @@ function init() {
 	
 	//cartoonStream = renderer.domElement.captureStream(0);
 	cartoonStream = renderer.domElement.captureStream(fpsIn);
-	//cartoonStream.addTrack(audioTrack);
+	cartoonStream.addTrack(audioTrack);
 	console.log(cartoonStream.getVideoTracks()[0].getSettings());
 	
 	let recording = false;
@@ -212,11 +212,10 @@ function init() {
 				data.push(e.data);
 			};
 			mediaRecorder.onstop = function(e) {
-				let blob = new Blob(data, {type: "video/webm"});
-				blob.name = "Cartoon_recording.webm";
+				let blob = new Blob(data, {type: mediaRecorder.mimeType});
 				blob.lastModifiedDate = new Date();
 				let a = document.createElement("a");
-				a.download = "Cartoon_recording.webm";
+				a.download = "Cartoon_recording";
 				a.href = window.URL.createObjectURL(blob);
 				a.click();
 			}
@@ -233,7 +232,15 @@ function init() {
 }
 
 function animate() {
-	renderer.setRenderTarget(cartoonTarget);
+	setInterval(function() {
+		renderer.setRenderTarget(cartoonTarget);
+		renderer.render(cartoonScene, cartoonCamera);
+		renderer.setRenderTarget(null);
+		smoother.update()
+		//renderer.render(scene, camera);
+	}, 1000./fpsIn);
+
+	/*renderer.setRenderTarget(cartoonTarget);
 	renderer.render(cartoonScene, cartoonCamera);
 	renderer.setRenderTarget(null);
 	smoother.update();
@@ -252,7 +259,7 @@ function animate() {
 			mediaRecorder.pause();
 		}
 		setTimeout(animate, 1000./fpsIn); //Would use requestAnimationFrame for CGI
-	}, 1000./fpsOut);
+	}, 1000./fpsOut);*/
 }
 </script>
 </body>
