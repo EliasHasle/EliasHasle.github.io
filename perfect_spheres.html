@@ -47,7 +47,7 @@ can be converted to UV.
 "use strict";
 
 //Globals
-var container, renderer, scene, camera, controls, mesh;
+var container, renderer, scene, camera, controls, quads;
 
 init();
 requestAnimationFrame(animate);
@@ -296,22 +296,22 @@ function init() {
 		}
 	);
 	
-	mesh = new THREE.Mesh(geom, mat);
-	mesh.frustumCulled = false;
+	quads = new THREE.Mesh(geom, mat);
+	quads.frustumCulled = false;
 	
 	var light = new THREE.Mesh(new THREE.SphereBufferGeometry(1,24,12), new THREE.MeshBasicMaterial());
 	light.position.set(15, 16, 40);
 	scene.add(light);
 	
-	mesh.onBeforeRender = function() {
-		mesh.material.uniforms.uLightViewPos.value.copy(light.position).applyMatrix4(camera.matrixWorldInverse);
+	quads.onBeforeRender = function() {
+		quads.material.uniforms.uLightViewPos.value.copy(light.position).applyMatrix4(camera.matrixWorldInverse);
 	}
-	scene.add(mesh);
+	scene.add(quads);
 	
 	//Camera setup
 	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 0.01, 300);
 	window.addEventListener('resize', onResize, false);
-	camera.position.set(30, 19, 63);
+	camera.position.set(138, 50, 53);
 	camera.lookAt(scene.position);
 	scene.add(camera);
 	
