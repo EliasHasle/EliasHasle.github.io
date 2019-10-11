@@ -71,7 +71,7 @@ function init() {
 	scene = new THREE.Scene();
 	//scene.add(new THREE.AxesHelper(50));
 	//scene.add(new THREE.GridHelper(50, 10));
-	scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+	//scene.add(new THREE.AmbientLight(0xffffff, 0.2));
 	/*var sun = new THREE.DirectionalLight(0xffffff, 0.5);
 	sun.position.set(243, 66,363);
 	scene.add(sun);*/
@@ -305,7 +305,7 @@ function init() {
 	scene.add(mesh);
 	
 	//Camera setup
-	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 1, 300);
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 0.01, 300);
 	window.addEventListener('resize', onResize, false);
 	camera.position.set(30, 19, 63);
 	camera.lookAt(scene.position);
