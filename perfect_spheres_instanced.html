@@ -1,0 +1,307 @@
+<html>
+<head>
+	<title>Perfect spheres</title>
+</head>
+
+<body>
+	<script src="three.js-master/build/three.js"></script>
+	<script src="three.js-master/examples/js/controls/OrbitControls.js"></script>
+
+<nav style="position: absolute; top:0; left:0, height:2vh; z-index:999">
+	<a href="." style="color: #66ffff">Back to index.</a>
+</nav>
+	
+<script>
+/*
+IDEA: To project quads parallel with the camera projection plane, and render
+perfect, lit spheres on them in a shader.
+
+Problems:
+1. Fragment depth calculation is ad hoc and wrong. The light source consistently lands behind all sphere quads.
+2. I don't understand the need for padding in the perspective branch.
+The point of radius-scaled view-space quads was to be sure that 
+3. Branching shaders.
+4. Quads have a large geometry overhead compared to points.
+
+Is it possible to achieve the same result with points instead of quads?
+Advantages:
+1. Smaller geometry.
+2. Only have to change one attribute entry to move a particle.
+Obstacles:
+1. Maximal point size is device-specific.
+2. Setting the right point size.
+3. Converting clip-space point coordinates into view-space rays?
+
+Possible extensions:
+1. Texturing from inverse rectangular projection. This can be achieved
+by converting back from view space to object space by multiplying with a 
+uniform inverse modelViewMatrix, and finding spherical coordinates which 
+can be converted to UV.
+2. Back and front renders.
+3. "Volumetric" rendering dependent on distance passed within sphere.
+4. Connect to the largest possible subset of three.js mesh material functionality, using the derived view-space positions and normals. Shadowing, reflection, refraction should be achieveable.
+
+*/
+
+
+"use strict";
+
+//Globals
+var container, renderer, scene, camera, controls, quads;
+
+init();
+requestAnimationFrame(animate);
+
+function init() {
+	//Renderer setup
+	document.body.style = "overflow: hidden;";
+	container = document.createElement("div");
+	Object.assign(container.style, {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		width: "100vw",
+		height: "100vh"
+	});
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	container.appendChild(renderer.domElement);
+
+	//Scene setup:
+	scene = new THREE.Scene();
+	//scene.add(new THREE.AxesHelper(50));
+	//scene.add(new THREE.GridHelper(50, 10));
+	//scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+	/*var sun = new THREE.DirectionalLight(0xffffff, 0.5);
+	sun.position.set(243, 66,363);
+	scene.add(sun);*/
+	
+	//Spheres
+	const N = 1000;
+	const S = 50;
+	const radius_max = 2;
+	
+	let planeGeom = new THREE.PlaneBufferGeometry(2,2);
+	planeGeom.translate(0,0,1);
+	
+	let geom = new THREE.InstancedBufferGeometry();
+	geom.index = planeGeom.index;
+	geom.attributes = planeGeom.attributes;
+	
+	let ca = new Float32Array(3*N); //centers
+	let ra = new Float32Array(N); //radiuses
+	let cla = new Float32Array(3*N); //colors
+	
+	for (let i = 0; i < N; i++) {	
+
+		ca[3*i] = S*(Math.random()-0.5);
+		ca[3*i+1] = S*(Math.random()-0.5);
+		ca[3*i+2] = S*(Math.random()-0.5);
+		
+		cla[3*i] = Math.random();
+		cla[3*i+1] = Math.random();
+		cla[3*i+2] = Math.random();
+		
+		ra[i] = radius_max*(0.25 + 0.75*Math.random());
+	}
+	
+	geom.addAttribute("center", new THREE.InstancedBufferAttribute(ca,3));
+	geom.addAttribute("radius", new THREE.InstancedBufferAttribute(ra,1));
+	geom.addAttribute("color", new THREE.InstancedBufferAttribute(cla,3));
+	
+	let mat = new THREE.ShaderMaterial(
+		{
+			vertexShader: `
+				//uniform mat4 modelViewMatrix;
+				//uniform mat4 projectionMatrix;
+				
+				//attribute vec3 position;
+				attribute vec3 center;
+				attribute float radius;
+				attribute vec3 color;
+				
+				varying vec3 vCenterViewPos;
+				varying vec3 vViewPos;
+				varying float vRadius;
+				varying vec3 vColor;
+				
+				bool isPerspectiveMatrix(mat4 m) {
+					return m[2][3] == -1.0;
+				}
+				
+				void main() {
+					vec4 centerViewPos = modelViewMatrix*vec4(center, 1.0);
+					
+					//Artificially padding the radius solves the clipping 
+					//problem in perspective raycast, but I don't know yet
+					//why it is necessary, and don't know how much padding 
+					//is sufficient in the general case. So this is ugly!
+					vec4 viewPos = centerViewPos + (radius+2.*float(isPerspectiveMatrix(projectionMatrix)))*vec4(position, 0.0);
+
+					//Attempt at alternative solution:
+					//vec4 viewPos = centerViewPos + radius*vec4(position, 0.0)*centerViewPos.w;
+					
+					gl_Position = projectionMatrix*viewPos;
+					
+					vCenterViewPos = centerViewPos.xyz/centerViewPos.w;
+					vViewPos = viewPos.xyz/viewPos.w;
+					vRadius = radius;
+					vColor = color;
+				}
+			`,
+			fragmentShader: `
+			//precision highp float;
+			
+			uniform mat4 projectionMatrix;
+			uniform vec3 uLightViewPos;
+			
+			varying vec3 vCenterViewPos;
+			varying vec3 vViewPos;
+			varying float vRadius;
+			varying vec3 vColor;
+			
+			bool isPerspectiveMatrix(mat4 m) {
+				return m[2][3] == -1.0;
+			}
+			
+			void main() {
+			
+				float opacity = 1.0;
+				vec3 normal;
+				vec3 localViewPos;
+				vec3 localPos;
+				
+				if (isPerspectiveMatrix(projectionMatrix)) {
+					//Perspective raycast, based on Ray.intersectSphere:
+					vec3 dir = normalize(vViewPos);
+					float tca = dot(vCenterViewPos,dir);
+					float d2 = dot(vCenterViewPos,vCenterViewPos) - tca * tca;
+					float radius2 = vRadius*vRadius;
+					if (d2 > radius2) {
+						discard;
+						//opacity = 0.0;
+					}
+					
+					float thc = sqrt(radius2-d2);
+					float t0 = tca-thc;
+					
+					localViewPos = t0*dir;
+					localPos = localViewPos-vCenterViewPos;
+					normal = normalize(localPos);
+				
+				} else {
+				
+					//Orthographic raycast (works):
+					localPos = vViewPos-vCenterViewPos;
+									
+					float theta = atan(localPos.y, localPos.x);
+					float s_phi = length(localPos.xy)/vRadius;
+					
+					if (s_phi > 1.0) {
+						discard;
+					}
+					
+					float c_phi = sqrt(1.-s_phi*s_phi);
+					float c_theta = cos(theta);
+					float s_theta = sin(theta);
+
+					//Using Vector3.setFromSphericalCoords as reference, but
+					//adapting to z up (towards the camera):
+					float nx = s_phi*c_theta;
+					float ny = s_phi*s_theta;
+					float nz = c_phi;
+					
+					normal = vec3(nx,ny,nz);
+					localPos = vRadius*normal;
+					localViewPos = vCenterViewPos+localPos;
+				}
+				
+				//Diffuse (Lambertian) shading:
+				vec3 lightDir = uLightViewPos-localViewPos;
+				float lightDistance = length(lightDir);
+				lightDir /= lightDistance;
+				float lightIntensity = 1000.0/(lightDistance*lightDistance);
+				float diffuseLight = saturate(dot(normal,lightDir))*lightIntensity;
+				vec3 diffuseColor = vColor;//vec3(0.2, 0.5, 0.7);
+				
+				//Ambient light
+				float ambient = 0.1;
+				
+				//Specular (Blinn-Phong) highlights:
+				vec3 specularColor = vec3(1.);
+				vec3 eyeDir = normalize(-localViewPos);
+				vec3 halfway = normalize(eyeDir+lightDir);
+				float highlight = pow(saturate(dot(normal,halfway)), 20.)*lightIntensity;
+				
+				gl_FragColor = vec4(diffuseColor*(diffuseLight+ambient) + specularColor*highlight, opacity);
+				//gl_FragColor = vec4(diffuseColor*(diffuseLight+ambient) + specularColor*highlight, 1.)*opacity;
+				//Debugging
+				//gl_FragColor = vec4(normal, 1.0);
+				//gl_FragColor = vec4(halfway, 1.0);
+				
+				//Reference: https://stackoverflow.com/questions/10264949/glsl-gl-fragcoord-z-calculation-and-setting-gl-fragdepth
+				#ifdef gl_FragDepthEXT
+					vec4 temp = projectionMatrix*vec4(localViewPos, 1.);
+					gl_FragDepthEXT = 0.5*(gl_DepthRange.diff*(temp.z/temp.w)+gl_DepthRange.near+gl_DepthRange.far);
+				#endif
+				
+				//DEBUG:
+				//gl_FragColor = vec4(vec3(gl_FragDepthEXT),opacity);
+			}
+			
+			`,
+			//side: THREE.DoubleSide,
+			//lights: true
+			//write depth, write alpha?
+			uniforms: {
+				uLightViewPos: new THREE.Uniform(new THREE.Vector3())
+			},
+			extensions: {
+				fragDepth: true,
+				//derivatives: true,
+			},
+			//transparent: true,
+		}
+	);
+	
+	quads = new THREE.Mesh(geom, mat);
+	quads.frustumCulled = false;
+	
+	var light = new THREE.Mesh(new THREE.SphereBufferGeometry(1,24,12), new THREE.MeshBasicMaterial());
+	light.position.set(15, 16, 40);
+	scene.add(light);
+	
+	quads.onBeforeRender = function() {
+		quads.material.uniforms.uLightViewPos.value.copy(light.position).applyMatrix4(camera.matrixWorldInverse);
+	}
+	scene.add(quads);
+	
+	//Camera setup
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 0.01, 300);
+	window.addEventListener('resize', onResize, false);
+	camera.position.set(138, 50, 53);
+	camera.lookAt(scene.position);
+	scene.add(camera);
+	
+	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	controls.screenSpacePanning = true;
+
+	onResize();
+}
+
+function onResize() {
+	let w = container.clientWidth;
+	let h = container.clientHeight;
+	camera.aspect = w/h;
+	camera.updateProjectionMatrix();
+	renderer.setSize(w, h);
+}
+
+function animate() {
+	renderer.render(scene, camera);
+	requestAnimationFrame(animate);
+}
+
+</script>
+</body>
+</html>
