@@ -170,7 +170,8 @@ function init() {
 					//is sufficient in the general case. So this is ugly!
 					vec4 viewPos = centerViewPos + (radius+2.*float(isPerspectiveMatrix(projectionMatrix)))*vec4(position, 0.0);
 
-					//vec4 
+					//Attempt at alternative solution:
+					//vec4 viewPos = centerViewPos + radius*vec4(position, 0.0)*centerViewPos.w;
 					
 					gl_Position = projectionMatrix*viewPos;
 					
@@ -210,7 +211,9 @@ function init() {
 					float radius2 = vRadius*vRadius;
 					if (d2 > radius2) {
 						discard;
+						//opacity = 0.0;
 					}
+					
 					float thc = sqrt(radius2-d2);
 					float t0 = tca-thc;
 					
@@ -226,11 +229,9 @@ function init() {
 					float theta = atan(localPos.y, localPos.x);
 					float s_phi = length(localPos.xy)/vRadius;
 					
-					//float opacity = smoothstep(0.,1.,20.*(1.-s_phi));
 					if (s_phi > 1.0) {
 						discard;
 					}
-					float opacity = 1.;
 					
 					float c_phi = sqrt(1.-s_phi*s_phi);
 					float c_theta = cos(theta);
@@ -243,8 +244,7 @@ function init() {
 					float nz = c_phi;
 					
 					normal = vec3(nx,ny,nz);
-					localPos.xyz = vRadius*normal;
-					
+					localPos = vRadius*normal;
 					localViewPos = vCenterViewPos+localPos;
 				}
 				
@@ -265,20 +265,20 @@ function init() {
 				vec3 halfway = normalize(eyeDir+lightDir);
 				float highlight = pow(saturate(dot(normal,halfway)), 20.)*lightIntensity;
 				
-				//No distance decay yet:
 				gl_FragColor = vec4(diffuseColor*(diffuseLight+ambient) + specularColor*highlight, opacity);
+				//gl_FragColor = vec4(diffuseColor*(diffuseLight+ambient) + specularColor*highlight, 1.)*opacity;
 				//Debugging
 				//gl_FragColor = vec4(normal, 1.0);
 				//gl_FragColor = vec4(halfway, 1.0);
 				
-				//Needs DepthFrag_EXT:
-				//It is hacky to divide by assumed far value
-				//The spheres are ordered fine, but not
-				//with respect to other objects
-				gl_FragDepthEXT = -localViewPos.z/300.;
+				//Reference: https://stackoverflow.com/questions/10264949/glsl-gl-fragcoord-z-calculation-and-setting-gl-fragdepth
+				#ifdef gl_FragDepthEXT
+					vec4 temp = projectionMatrix*vec4(localViewPos, 1.);
+					gl_FragDepthEXT = 0.5*(gl_DepthRange.diff*(temp.z/temp.w)+gl_DepthRange.near+gl_DepthRange.far);
+				#endif
 				
 				//DEBUG:
-				//gl_FragColor = vec4(gl_FragDepthEXT,gl_FragDepthEXT,gl_FragDepthEXT,opacity);
+				//gl_FragColor = vec4(vec3(gl_FragDepthEXT),opacity);
 			}
 			
 			`,
@@ -289,8 +289,10 @@ function init() {
 				uLightViewPos: new THREE.Uniform(new THREE.Vector3())
 			},
 			extensions: {
-				fragDepth: true
-			}
+				fragDepth: true,
+				//derivatives: true,
+			},
+			//transparent: true,
 		}
 	);
 	
