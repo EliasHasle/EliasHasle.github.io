@@ -77,8 +77,10 @@ function init() {
 	scene.add(sun);*/
 	
 	//Spheres
-	const N = 100;
+	const N = 1000;
 	const S = 50;
+	const radius_max = 2;
+	
 	let geom = new THREE.BufferGeometry();
 	let pa = new Float32Array(18*N);
 	let ca = new Float32Array(18*N); //centers
@@ -112,7 +114,7 @@ function init() {
 		let g = Math.random();
 		let b = Math.random();
 		
-		let radius = 0.5 + 2*Math.random();
+		let radius = radius_max*(0.25 + 0.75*Math.random());
 		//console.log(cx,cy,cz);
 		
 		for (let j = 0; j < 6; j++) {
