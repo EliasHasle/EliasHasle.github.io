@@ -280,7 +280,7 @@ function init() {
 	scene.add(quads);
 	
 	//Camera setup
-	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 0.01, 300);
+	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 0.25, 500);
 	window.addEventListener('resize', onResize, false);
 	camera.position.set(138, 50, 53);
 	camera.lookAt(scene.position);
