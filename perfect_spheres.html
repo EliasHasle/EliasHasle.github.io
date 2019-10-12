@@ -12,37 +12,8 @@
 </nav>
 	
 <script>
-/*
-IDEA: To project quads parallel with the camera projection plane, and render
-perfect, lit spheres on them in a shader.
 
-Problems:
-1. Fragment depth calculation is ad hoc and wrong. The light source consistently lands behind all sphere quads.
-2. I don't understand the need for padding in the perspective branch.
-The point of radius-scaled view-space quads was to be sure that 
-3. Branching shaders.
-4. Quads have a large geometry overhead compared to points.
-
-Is it possible to achieve the same result with points instead of quads?
-Advantages:
-1. Smaller geometry.
-2. Only have to change one attribute entry to move a particle.
-Obstacles:
-1. Maximal point size is device-specific.
-2. Setting the right point size.
-3. Converting clip-space point coordinates into view-space rays?
-
-Possible extensions:
-1. Texturing from inverse rectangular projection. This can be achieved
-by converting back from view space to object space by multiplying with a 
-uniform inverse modelViewMatrix, and finding spherical coordinates which 
-can be converted to UV.
-2. Back and front renders.
-3. "Volumetric" rendering dependent on distance passed within sphere.
-4. Connect to the largest possible subset of three.js mesh material functionality, using the derived view-space positions and normals. Shadowing, reflection, refraction should be achieveable.
-
-*/
-
+// See https://discourse.threejs.org/t/coding-jam-pixel-perfect-spheres-without-high-res-geometry/10154
 
 "use strict";
 
@@ -168,7 +139,7 @@ function init() {
 					//problem in perspective raycast, but I don't know yet
 					//why it is necessary, and don't know how much padding 
 					//is sufficient in the general case. So this is ugly!
-					vec4 viewPos = centerViewPos + (radius+2.*float(isPerspectiveMatrix(projectionMatrix)))*vec4(position, 0.0);
+					vec4 viewPos = centerViewPos + vec4((radius+2.*float(isPerspectiveMatrix(projectionMatrix)))*position.xy,radius*position.z, 0.0)*centerViewPos.w;
 
 					//Attempt at alternative solution:
 					//vec4 viewPos = centerViewPos + radius*vec4(position, 0.0)*centerViewPos.w;
