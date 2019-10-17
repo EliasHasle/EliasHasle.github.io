@@ -54,16 +54,28 @@ class TunnelRoad extends THREE.Group {
 		tunnel.name = "Tunnel group";
 		this.add(tunnel);
 		
-		const tilesLeftGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 2, true, Math.PI+0.5*roadAngle, archAngle*7/21);
-		const tilesRightGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 2, true, Math.PI+0.5*roadAngle+archAngle*14/21, archAngle*7/21);
-		const tilesTopGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, 7, 2, true, Math.PI+0.5*roadAngle+archAngle*7/21, archAngle*7/21);
-		const tunnelGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries([tilesLeftGeometry, tilesRightGeometry, tilesTopGeometry], true);
-		console.log(tunnelGeometry.groups[0].count);
-		tunnelGeometry.addGroup(0, 168, 0);
-		tunnelGeometry.addGroup(168, 84, 1);
+		const sideSegments = 7;
+		const ceilSegments = 7;
+		const archSegments = 2*sideSegments + ceilSegments;
 		
+		const tilesLeftGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, sideSegments, 2, true, Math.PI+0.5*roadAngle, archAngle*sideSegments/archSegments);
+		const tilesRightGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, sideSegments, 2, true, Math.PI+0.5*roadAngle+archAngle*(sideSegments+ceilSegments)/archSegments, archAngle*sideSegments/archSegments);
+		const tilesTopGeometry = new THREE.CylinderBufferGeometry(radius, radius, segments*segmentLength, ceilSegments, 2, true, Math.PI+0.5*roadAngle+archAngle*sideSegments/archSegments, archAngle*ceilSegments/archSegments);
+		const tunnelGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries([tilesLeftGeometry, tilesRightGeometry, tilesTopGeometry], true);
+		//Not responsive to the segment parameters.
+		tunnelGeometry.groups = [{start:0, count:168, materialIndex: 0},{start:168, count: 84, materialIndex:1}];
+		
+		//Not responsive to the segment parameters (a solution is to scale UVs)
 		const lightTileMat = new THREE.MeshPhongMaterial( {map: TunnelRoad.lightTileMap, side: THREE.BackSide, bumpMap: TunnelRoad.tileBumpMap, bumpScale: 0.04, fog: true} );
 		const darkTileMat = new THREE.MeshPhongMaterial( {map: TunnelRoad.darkTileMap, side: THREE.BackSide, bumpMap: TunnelRoad.tileBumpMap, bumpScale: 0.04, fog: true} );
+		for (let mat of [lightTileMat, darkTileMat]) {
+			for (let mapName of ["map", "bumpMap"]) {
+				let map = mat[mapName];
+				//Make tiles approx. proportional:
+				map.repeat.set(7, segments*Math.round(11*segmentLength/(radius*archAngle)));
+				map.needsUpdate = true;
+			}
+		}
 		
 		const tunnelWalls = new THREE.Mesh(tunnelGeometry, [lightTileMat, darkTileMat]);
 		tunnelWalls.rotation.x = -0.5*Math.PI;
@@ -235,9 +247,6 @@ console.log("TunnelRoad.radius = ",TunnelRoad.radius);
 		THREE.LinearMipmapLinearFilter,
 		1);
 	lightTileMap.generateMipmaps = true;
-	//Make tiles approx. proportional:
-	lightTileMap.repeat.set(7, segments*Math.round(11*segmentLength/(radius*archAngle)));
-	lightTileMap.needsUpdate = true;
 
 	const darkTileMap = new THREE.DataTexture(
 		darkData,
@@ -249,9 +258,6 @@ console.log("TunnelRoad.radius = ",TunnelRoad.radius);
 		THREE.LinearMipmapLinearFilter,
 		1);
 	darkTileMap.generateMipmaps = true;
-	//Make tiles approx. proportional:
-	darkTileMap.repeat.set(7, segments*Math.round(11*segmentLength/(radius*archAngle)));
-	darkTileMap.needsUpdate = true;
 	
 	const tileBumpMap = new THREE.DataTexture(
 		tileBumpData,
@@ -263,9 +269,6 @@ console.log("TunnelRoad.radius = ",TunnelRoad.radius);
 		THREE.LinearMipmapLinearFilter,
 		1);
 	tileBumpMap.generateMipmaps = true;
-	//Make tiles approx. proportional:
-	tileBumpMap.repeat.set(7, segments*Math.round(11*segmentLength/(radius*archAngle)));
-	tileBumpMap.needsUpdate = true;
 
 	//Asphalt surface
 	let bumpSide = 128;
