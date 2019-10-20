@@ -1,0 +1,156 @@
+<!doctype html>
+
+<html>
+<head>
+	<title>Slangebilde</title>
+	<script src="three.js-master/build/three.js"></script>
+	<script src="three.js-master\examples\js\loaders\MTLLoader.js"></script>
+	<script src="three.js-master\examples\js\loaders\OBJLoader.js"></script>
+	<script src="dat.gui-master/build/dat.gui.js"></script>
+</head>
+
+<body>
+
+<p style="position:fixed; bottom:0; right: 0; z-index:2;"><a href="https://www.turbosquid.com/3d-models/la-3d-model/824737">Skyscraper model</a> from Turbosquid</p>
+
+<script>
+"use strict";
+
+//Globals
+var renderer, scene, camera, bilde, sun, block;
+
+var gui = new dat.GUI();
+
+function update() {
+	camera.updateProjectionMatrix();
+	camera.lookAt(scene.position); //can't trust this?
+	requestAnimationFrame(()=>renderer.render(scene, camera));
+}
+
+let mtlLoader = new THREE.MTLLoader();
+
+mtlLoader.load("models/usbank.mtl", function(materials) {
+	materials.preload();
+	let objLoader = new THREE.OBJLoader();
+	objLoader.setMaterials(materials);
+	objLoader.load("models/usbank.obj", function(model) {
+		model.traverse(o=>(o.castShadow = true));
+		model.position.set(-0.1,0,0);
+		model.scale.set(0.00004,0.00004,0.00004);
+		model.rotation.y = 1;
+		scene.add(model);
+
+		gui.add(model.position, "x", -2,2).name("BlockX").onChange(update);
+		gui.add(model.position, "z", -2,2).name("BlockZ").onChange(update);
+		gui.add(model.rotation, "y", -2,2).name("BlockR").onChange(update);
+		gui.add({scale: 0.0001}, "scale", 0.00001,0.0001).onChange(function(s) {
+			model.scale.setScalar(s);//(s,s,s);
+			update();
+		});
+		update();
+	});
+});
+
+const textureLoader = new THREE.TextureLoader();
+textureLoader.load("textures/hoggorm.jpg", function(texture) {
+
+	let [W,H] = [texture.image.width, texture.image.height];
+	texture.generateMipmaps = false;
+	texture.minFilter = THREE.LinearFilter;
+	
+	//Renderer setup
+	//document.body.style = "overflow: hidden;";
+	var container = document.createElement("div");
+	container.style = "position: absolute; top: 0; left: 0;"
+	document.body.appendChild(container);
+	renderer = new THREE.WebGLRenderer({antialias: true});
+	renderer.setSize(W, H);
+	Object.assign(renderer.shadowMap, {
+		enabled: true,
+		type: THREE.PCFSoftShadowMap
+	});
+	
+	container.appendChild(renderer.domElement);
+
+	//Scene setup:
+	scene = new THREE.Scene();
+
+	let geometry = new THREE.PlaneBufferGeometry(100,100,1,1);
+	geometry.rotateX(-0.5*Math.PI); //y up
+
+	let material = new THREE.ShaderMaterial({
+		vertexShader: `
+			varying vec4 vClipPos;
+			#include <common>
+			#include <shadowmap_pars_vertex>
+			
+			void main() {
+				#include <begin_vertex>
+				#include <worldpos_vertex>
+				#include <shadowmap_vertex>
+			
+				vClipPos = projectionMatrix*modelViewMatrix*vec4(position,1.0);
+				gl_Position = vClipPos;
+			}
+		`,
+		fragmentShader: `
+			uniform sampler2D map;
+			varying vec4 vClipPos;
+			#include <common>
+			#include <packing>
+			#include <lights_pars_begin>
+			#include <shadowmap_pars_fragment>
+			
+			void main() {
+				vec2 screenPos = 0.5*(vClipPos.xy/vClipPos.w+vec2(1.0,1.0));
+				vec4 color = texture2D(map, screenPos);
+				
+				vec4 shadowCoord = vDirectionalShadowCoord[0];
+				float shadow = texture2DCompare(directionalShadowMap[0], shadowCoord.xy, shadowCoord.z);
+				vec3 shadowColor = vec3(0.8,0.6,0.4);
+				gl_FragColor = vec4((vec3(1.0)+shadowColor*(shadow-1.0))*color.xyz, 1.);
+			}
+		`,
+		uniforms: THREE.UniformsUtils.merge([
+			THREE.UniformsLib.common,
+			THREE.UniformsLib.lights
+		]),
+		lights: true,
+	});
+	material.uniforms.map = new THREE.Uniform(texture);
+
+	bilde = new THREE.Mesh(geometry, material);
+	bilde.frustumCulled = false; //DEBUG
+	bilde.receiveShadow = true;
+	scene.add(bilde);
+	
+	//Camera setup
+	let cameraContainer = new THREE.Group();
+	camera = new THREE.PerspectiveCamera(40);
+	camera.position.set(3.5, 1.7, 0);
+	cameraContainer.rotation.y = 4.45;//5;
+	cameraContainer.add(camera);
+	scene.add(cameraContainer);
+	
+	//Lights:
+	scene.add(new THREE.AmbientLight(0xffffff,0.2));
+	scene.add(new THREE.HemisphereLight(0xccccff,0xddddaa,0.4));
+	sun = new THREE.DirectionalLight(0xffffdd,1.0);
+	sun.castShadow = true;
+	scene.add(sun);
+
+	let angles = new THREE.Spherical(10, Math.PI*(0.5-27.6/180), Math.PI*231/180);
+	sun.position.setFromSpherical(angles);
+	console.log(sun.position);
+	
+	gui.add(camera.position, "x", 2,6).name("Horizontal distance").onChange(update);
+	gui.add(camera.position, "y", 1.1,1.8).name("Vertical distance").onChange(update);
+	gui.add(cameraContainer.rotation, "y", 0, 2*Math.PI).name("Direction").onChange(update);
+	gui.add(camera, "fov", 10, 60).onChange(update);
+
+	update();
+});
+
+</script>
+</body>
+</html>
