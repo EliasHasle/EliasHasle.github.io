@@ -327,6 +327,7 @@ void main() {
 		camera.aspect = window.innerWidth / window.innerHeight;
 		camera.updateProjectionMatrix();
 		renderer.setSize(window.innerWidth, window.innerHeight);
+		requestAnimationFrame(render);
 	}, false);
 	camera.up.set(0,0,1);
 	camera.position.set(3, 7, 5);

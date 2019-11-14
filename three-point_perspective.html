@@ -68,6 +68,7 @@ var container;
 		camera.aspect = window.innerWidth / window.innerHeight;
 		camera.updateProjectionMatrix();
 		renderer.setSize(window.innerWidth, window.innerHeight);
+		requestAnimationFrame(render);
 	}, false);
 	camera.position.set(800, -1200, 900);
 	camera.lookAt(scene.position);
