@@ -334,12 +334,11 @@ void main() {
 	scene.add(camera);
 	
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
-	
-	animate();
+	controls.addEventListener("change", ()=>requestAnimationFrame(render));
+	requestAnimationFrame(render)
 })();
 
-function animate() {
-	requestAnimationFrame(animate);
+function render() {
 	renderer.render(scene, camera);
 }
 

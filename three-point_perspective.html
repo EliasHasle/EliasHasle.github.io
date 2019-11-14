@@ -74,6 +74,7 @@ var container;
 	scene.add(camera);
 	
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	controls.addEventListener("change", ()=>requestAnimationFrame(render));
 	
 	gui = new dat.GUI();
 	gui.add(container.scale, "x", 10, 1000).name("Breadth");
@@ -83,13 +84,10 @@ var container;
 		camera.updateProjectionMatrix();
 	});
 
-	animate();
+	requestAnimationFrame(render);
 })();
 
-function animate() {
-	requestAnimationFrame(animate);
-	//var dt = clock.getDelta();
-	//var t = clock.getElapsedTime();
+function render() {
 	renderer.render(scene, camera);
 }
 </script>

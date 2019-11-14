@@ -82,6 +82,7 @@ function adjustCameraToModel() {
 	bb.getCenter(controls.target);
 	camera.lookAt(controls.target);
 	camera.updateProjectionMatrix();
+	requestAnimationFrame(render);
 }
 
 (function main() {
@@ -107,14 +108,16 @@ function adjustCameraToModel() {
 	//Camera setup
 	camera = new THREE.PerspectiveCamera(26, window.innerWidth/window.innerHeight, 1, 100000);
 	window.addEventListener('resize', function() {
+		renderer.setSize(window.innerWidth, window.innerHeight);
 		camera.aspect = window.innerWidth / window.innerHeight;
 		camera.updateProjectionMatrix();
-		renderer.setSize(window.innerWidth, window.innerHeight);
+		requestAnimationFrame(render);
 	}, false);
 	camera.position.set(-1400, 1200, 2500);
 	scene.add(camera);
 	
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
+	controls.addEventListener("change", ()=>requestAnimationFrame(render));
 	
 	//Menu
 	gui = new dat.GUI();
@@ -132,6 +135,7 @@ function adjustCameraToModel() {
 				}
 			});
 		}
+		requestAnimationFrame(render);
 	});
 	gui.addColor({color: "#dddd88"}, "color").onChange(function(value) {
 		if (material !== undefined) {
@@ -143,6 +147,7 @@ function adjustCameraToModel() {
 				}
 			});
 		}
+		requestAnimationFrame(render);
 	});
 	gui.add({zUp: false}, "zUp").onChange(function(value) {
 		model.rotation.x = value*(-0.5*Math.PI);
@@ -154,18 +159,17 @@ function adjustCameraToModel() {
 	};
 	function updateSun() {
 		sun.position.setFromSpherical(new THREE.Spherical(1, sunDir.sunPhi, sunDir.sunTheta));
+		requestAnimationFrame(render);
 	}
 	gui.add(sunDir, "sunPhi", -0.5*Math.PI, 0.5*Math.PI).onChange(updateSun);
 	gui.add(sunDir, "sunTheta", 0, 2*Math.PI).onChange(updateSun);
-	gui.addColor({background: "#8888aa"}, "background").onChange(renderer.setClearColor);
-	animate();
+	gui.addColor({background: "#8888aa"}, "background").onChange(value=>{renderer.setClearColor(value);requestAnimationFrame(render);});
+	
+	requestAnimationFrame(render);
 })();
 
-function animate() {
-	//var dt = clock.getDelta();
-	//var t = clock.getElapsedTime();
+function render() {
 	renderer.render(scene, camera);
-	requestAnimationFrame(animate);
 }
 </script>
 </body>

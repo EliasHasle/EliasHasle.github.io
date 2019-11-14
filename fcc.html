@@ -109,6 +109,8 @@ function addCell(xc,yc,zc) {
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.target.set(0,0,0);
 	controls.maxDistance = 50;
+	controls.addEventListener("change", ()=>requestAnimationFrame(render));
+	
 	controls.update();
 	
 	scene = new THREE.Scene();
@@ -144,11 +146,12 @@ function addCell(xc,yc,zc) {
 		});
 	});
 	
-	requestAnimationFrame(function animate() {
-		renderer.render(scene, camera);
-		requestAnimationFrame(animate);
-	});
+	requestAnimationFrame(render);
 })();
+
+function render() {
+	renderer.render(scene, camera);
+}
 
 function onWindowResize() {
 	camera.aspect = window.innerWidth / window.innerHeight;

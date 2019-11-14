@@ -21,7 +21,6 @@
 var container, renderer, scene, camera, controls, quads;
 
 init();
-requestAnimationFrame(animate);
 
 function init() {
 	//Renderer setup
@@ -288,8 +287,10 @@ function init() {
 	
 	controls = new THREE.OrbitControls(camera, renderer.domElement);
 	controls.screenSpacePanning = true;
+	controls.addEventListener("change", ()=>requestAnimationFrame(render));
 
 	onResize();
+	requestAnimationFrame(render)
 }
 
 function onResize() {
@@ -300,9 +301,8 @@ function onResize() {
 	renderer.setSize(w, h);
 }
 
-function animate() {
+function render() {
 	renderer.render(scene, camera);
-	requestAnimationFrame(animate);
 }
 
 </script>
