@@ -32,7 +32,7 @@ THREE.BufferGeometryUtils = {
 
 		if ( attributes.tangent === undefined ) {
 
-			geometry.setAttribute( 'tangent', new THREE.BufferAttribute( new Float32Array( 4 * nVertices ), 4 ) );
+			geometry.addAttribute( 'tangent', new THREE.BufferAttribute( new Float32Array( 4 * nVertices ), 4 ) );
 
 		}
 
@@ -328,7 +328,7 @@ THREE.BufferGeometryUtils = {
 
 			}
 
-			mergedGeometry.setAttribute( name, mergedAttribute );
+			mergedGeometry.addAttribute( name, mergedAttribute );
 
 		}
 
@@ -647,7 +647,7 @@ THREE.BufferGeometryUtils = {
 			var buffer = new oldAttribute.array.constructor( attrArrays[ name ] );
 			var attribute = new THREE.BufferAttribute( buffer, oldAttribute.itemSize, oldAttribute.normalized );
 
-			result.setAttribute( name, attribute );
+			result.addAttribute( name, attribute );
 
 			// Update the attribute arrays
 			if ( name in morphAttrsArrays ) {
