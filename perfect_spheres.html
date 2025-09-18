@@ -166,6 +166,10 @@ function init() {
 				return m[2][3] == -1.0;
 			}
 			
+			float saturate(float x) {
+				return x < 0.0 ? 0.0 : x > 1.0 ? 1.0 : x;
+			}
+			
 			void main() {
 			
 				float opacity = 1.0;
@@ -223,7 +227,7 @@ function init() {
 				float lightDistance = length(lightDir);
 				lightDir /= lightDistance;
 				float lightIntensity = 1000.0/(lightDistance*lightDistance);
-				float diffuseLight = saturate(dot(normal,lightDir))*lightIntensity;
+				float diffuseLight = saturate(dot(normal,lightDir)) * lightIntensity;
 				vec3 diffuseColor = vColor;//vec3(0.2, 0.5, 0.7);
 				
 				//Ambient light
